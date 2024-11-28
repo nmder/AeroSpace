@@ -12,11 +12,19 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene {
         Divider()
         if viewModel.isEnabled {
             Text("Workspaces:")
-            ForEach(viewModel.workspaceStatus) { $0.button }
+            ForEach(viewModel.workspaces, id: \.name) { workspace in
+                Button {
+                    refreshSession(screenIsDefinitelyUnlocked: true) { _ = Workspace.get(byName: workspace.name).focusWorkspace() }
+                } label: {
+                    Toggle(isOn: .constant(workspace.isFocused)) {
+                        Text(workspace.name + workspace.suffix).font(.system(.body, design: .monospaced))
+                    }
+                }
+            }
             Divider()
         }
         Button(viewModel.isEnabled ? "Disable" : "Enable") {
-            refreshSession {
+            refreshSession(screenIsDefinitelyUnlocked: true) {
                 _ = EnableCommand(args: EnableCmdArgs(rawArgs: [], targetState: .toggle)).run(.defaultEnv, .emptyStdin)
             }
         }.keyboardShortcut("E", modifiers: .command)
@@ -35,7 +43,7 @@ public func menuBar(viewModel: TrayMenuModel) -> some Scene {
         }.keyboardShortcut("O", modifiers: .command)
         if viewModel.isEnabled {
             Button("Reload config") {
-                refreshSession { _ = reloadConfig() }
+                refreshSession(screenIsDefinitelyUnlocked: true) { _ = reloadConfig() }
             }.keyboardShortcut("R", modifiers: .command)
         }
         Button("Quit \(aeroSpaceAppName)") {

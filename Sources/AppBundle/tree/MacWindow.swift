@@ -63,12 +63,12 @@ final class MacWindow: Window, CustomStringConvertible {
     // skipClosedWindowsCache is an optimization when it's definitely not necessary to cache closed window.
     //                        If you are unsure, it's better to pass `false`
     func garbageCollect(skipClosedWindowsCache: Bool) {
-        if !skipClosedWindowsCache { cacheClosedWindowIfNeeded(window: self) }
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
+        if !skipClosedWindowsCache { cacheClosedWindowIfNeeded(window: self) }
         let parent = unbindFromParent().parent
-        let workspace = parent.workspace?.name
+        let deadWindowWorkspace = parent.nodeWorkspace
         for obs in axObservers {
             AXObserverRemoveNotification(obs.obs, obs.ax, obs.notif)
         }
@@ -76,12 +76,13 @@ final class MacWindow: Window, CustomStringConvertible {
         // todo the if is an approximation to filter out cases when window just closed itself (or was killed remotely)
         //  we might want to track the time of the latest workspace switch to make the approximation more accurate
         let focus = focus
-        if let workspace, workspace == focus.workspace.name || workspace == prevFocusedWorkspace?.name {
+        if let deadWindowWorkspace, deadWindowWorkspace == focus.workspace || deadWindowWorkspace == prevFocusedWorkspace {
             switch parent.cases {
                 case .tilingContainer, .workspace, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
-                    // todo is this refreshSession necessary? garbageCollect should already be called in a refreshSession
-                    refreshSession(screenIsDefinitelyUnlocked: false, forceFocus: focus.windowOrNil?.app != app) {
-                        _ = Workspace.get(byName: workspace).focusWorkspace()
+                    let deadWindowFocus = deadWindowWorkspace.toLiveFocus()
+                    _ = setFocus(to: deadWindowFocus)
+                    if focus.windowOrNil?.app != app {
+                        deadWindowFocus.windowOrNil?.nativeFocus() // force focus
                     }
                 case .macosPopupWindowsContainer, .macosMinimizedWindowsContainer:
                     break // Don't switch back on popup destruction
@@ -109,7 +110,9 @@ final class MacWindow: Window, CustomStringConvertible {
 
     override func close() -> Bool {
         guard let closeButton = axWindow.get(Ax.closeButtonAttr) else { return false }
-        return AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == AXError.success
+        if AXUIElementPerformAction(closeButton, kAXPressAction as CFString) != AXError.success { return false }
+        garbageCollect(skipClosedWindowsCache: true)
+        return true
     }
 
     func hideInCorner(_ corner: OptimalHideCorner) {
@@ -118,9 +121,9 @@ final class MacWindow: Window, CustomStringConvertible {
         // `hideEmulation` calls
         if !isHiddenInCorner {
             guard let topLeftCorner = getTopLeftCorner() else { return }
-            guard let workspace else { return } // hiding only makes sense for workspace windows
+            guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
             prevUnhiddenEmulationPositionRelativeToWorkspaceAssignedRect =
-                topLeftCorner - workspace.workspaceMonitor.rect.topLeftCorner
+                topLeftCorner - nodeWorkspace.workspaceMonitor.rect.topLeftCorner
         }
         let p: CGPoint
         switch corner {
@@ -141,13 +144,13 @@ final class MacWindow: Window, CustomStringConvertible {
 
     func unhideFromCorner() {
         guard let prevUnhiddenEmulationPositionRelativeToWorkspaceAssignedRect else { return }
-        guard let workspace else { return } // hiding only makes sense for workspace windows
+        guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
 
         switch getChildParentRelation(child: self, parent: parent) {
             // Just a small optimization to avoid unnecessary AX calls for non floating windows
             // Tiling windows should be unhidden with layoutRecursive anyway
             case .floatingWindow:
-                _ = setTopLeftCorner(workspace.workspaceMonitor.rect.topLeftCorner + prevUnhiddenEmulationPositionRelativeToWorkspaceAssignedRect)
+                _ = setTopLeftCorner(nodeWorkspace.workspaceMonitor.rect.topLeftCorner + prevUnhiddenEmulationPositionRelativeToWorkspaceAssignedRect)
             case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
                  .macosPopupWindow, .tiling, .rootTilingContainer, .shimContainerRelation: break
         }
@@ -357,7 +360,7 @@ extension WindowDetectedCallback {
         if let regex = matcher.appNameRegexSubstring, !(window.app.name ?? "").contains(regex) {
             return false
         }
-        if let workspace = matcher.workspace, workspace != window.workspace?.name {
+        if let workspace = matcher.workspace, workspace != window.nodeWorkspace?.name {
             return false
         }
         return true

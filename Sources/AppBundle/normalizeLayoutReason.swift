@@ -38,7 +38,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) {
                     } else {
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     }
-                } else if config.crossWorkspaceFloatingWindows && window.parent.kind == .workspace {
+                } else if config.crossWorkspaceFloatingWindows && window.parent.kind == .workspace && !workspace.isVisible  {
                     window.bindAsFloatingWindow(to: focus.workspace)
                 }
             case .macos(let prevParentKind):

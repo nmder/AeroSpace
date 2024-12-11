@@ -6,9 +6,11 @@ public let unixUserName = NSUserName()
 public let mainModeId = "main"
 private var recursionDetectorDuringFailure: Bool = false
 
+public var refreshSessionEventForDebug: RefreshSessionEvent? = nil
+
 public func errorT<T>(
     _ __message: String = "",
-    file: String = #file,
+    file: String = #fileID,
     line: Int = #line,
     column: Int = #column,
     function: String = #function
@@ -17,15 +19,17 @@ public func errorT<T>(
     let message =
         """
         Please report to:
-            https://github.com/nikitabobko/AeroSpace/issues/new
+            https://github.com/nikitabobko/AeroSpace/issues
             Please describe what you did to trigger this error
 
         Message: \(_message)
         Version: \(aeroSpaceAppVersion)
         Git hash: \(gitHash)
+        Date: \(Date())
         Coordinate: \(file):\(line):\(column) \(function)
         recursionDetectorDuringFailure: \(recursionDetectorDuringFailure)
         cli: \(isCli)
+        refreshSessionEvent: \(String(describing: refreshSessionEventForDebug))
         Displays have separate spaces: \(NSScreen.screensHaveSeparateSpaces)
 
         Stacktrace:
@@ -47,6 +51,18 @@ public func errorT<T>(
     fatalError("\n" + message)
 }
 
+public enum RefreshSessionEvent {
+    case globalObserver(String)
+    case globalObserverLeftMouseUp
+    case menuBarButton
+    case hotkeyBinding
+    case startup1
+    case startup2
+    case socketServer
+    case resetManipulatedWithMouse
+    case ax(String)
+}
+
 public func throwT<T>(_ error: Error) throws -> T {
     throw error
 }
@@ -56,7 +72,7 @@ public func getStringStacktrace() -> String { Thread.callStackSymbols.joined(sep
 
 @inlinable public func error(
     _ message: String = "",
-    file: String = #file,
+    file: String = #fileID,
     line: Int = #line,
     column: Int = #column,
     function: String = #function
@@ -67,7 +83,7 @@ public func getStringStacktrace() -> String { Thread.callStackSymbols.joined(sep
 public func check(
     _ condition: Bool,
     _ message: @autoclosure () -> String = "",
-    file: String = #file,
+    file: String = #fileID,
     line: Int = #line,
     column: Int = #column,
     function: String = #function
@@ -78,7 +94,7 @@ public func check(
 }
 
 @inlinable public func tryCatch<T>(
-    file: String = #file,
+    file: String = #fileID,
     line: Int = #line,
     column: Int = #column,
     function: String = #function,

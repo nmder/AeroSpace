@@ -209,6 +209,14 @@ final class MacWindow: Window, CustomStringConvertible {
 func isWindow(_ axWindow: AXUIElement, _ app: MacApp) -> Bool {
     let subrole = axWindow.get(Ax.subroleAttr)
 
+    // Just don't do anything with "Ghostty Quick Terminal" windows.
+    // Its position and size are managed by the Ghostty itself
+    // https://github.com/nikitabobko/AeroSpace/issues/103
+    // https://github.com/ghostty-org/ghostty/discussions/3512
+    if app.id == "com.mitchellh.ghostty" && axWindow.get(Ax.identifierAttr) == "com.mitchellh.ghostty.quickTerminal" {
+        return false
+    }
+
     // Try to filter out incredibly weird popup like AXWindows without any buttons.
     // E.g.
     // - Sonoma (macOS 14) keyboard layout switch
@@ -231,7 +239,11 @@ func isWindow(_ axWindow: AXUIElement, _ app: MacApp) -> Bool {
     return subrole == kAXStandardWindowSubrole ||
         subrole == kAXDialogSubrole || // macOS native file picker ("Open..." menu) (kAXDialogSubrole value)
         subrole == kAXFloatingWindowSubrole || // telegram image viewer
-        app.id == "com.apple.finder" && subrole == "Quick Look" // Finder preview (hit space) is a floating window
+        app.id == "com.apple.finder" && subrole == "Quick Look" || // Finder preview (hit space) is a floating window
+
+        // Firefox non-native video fullscreen
+        // about:config -> full-screen-api.macos-native-full-screen -> false
+        app.id == "org.mozilla.firefox" && subrole == kAXUnknownSubrole
 }
 
 func shouldFloat(_ axWindow: AXUIElement, _ app: MacApp) -> Bool { // Note: a lot of windows don't have title on startup
@@ -250,6 +262,7 @@ func shouldFloat(_ axWindow: AXUIElement, _ app: MacApp) -> Bool { // Note: a lo
     if app.id == "org.mozilla.firefox" && axWindow.get(Ax.minimizeButtonAttr)?.get(Ax.enabledAttr) != true {
         return true
     }
+    if app.id == "com.apple.PhotoBooth" { return true }
     // Heuristic: float windows without fullscreen button (such windows are not designed to be big)
     // - IntelliJ various dialogs (Rebase..., Edit commit message, Settings, Project structure)
     // - Finder copy file dialog

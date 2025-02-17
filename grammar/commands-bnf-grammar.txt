@@ -1,4 +1,5 @@
 # EBNF-like grammar of aerospace CLI args to generate shell completion. Managed by https://github.com/adaszko/complgen
+# Run ./build-shell-completion.sh to generate shell completion
 aerospace <subcommand>;
 aerospace -v;
 aerospace --version;
@@ -39,7 +40,7 @@ aerospace -h;
 
     | macos-native-fullscreen [--fail-if-noop|--window-id <window_id>]... [on|off] [--fail-if-noop|--window-id <window_id>]...
 
-    | macos-native-minimize
+    | macos-native-minimize [--window-id <window_id>]
 
     | mode <mode_id>
 
@@ -80,7 +81,7 @@ aerospace -h;
     | config --all-keys
     | config --config-path
 
-    | debug-windows
+    | debug-windows [--window-id <window_id>]
 
     | list-apps [--macos-native-hidden [no] | --format <output_format> | --count | --json]...
 

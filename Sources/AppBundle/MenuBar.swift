@@ -2,6 +2,7 @@ import Common
 import Foundation
 import SwiftUI
 
+@MainActor
 public func menuBar(viewModel: TrayMenuModel) -> some Scene { // todo should it be converted to "SwiftUI struct"?
     MenuBarExtra {
         let shortIdentification = "\(aeroSpaceAppName) v\(aeroSpaceAppVersion) \(gitShortHash)"
@@ -78,7 +79,7 @@ struct MonospacedText: View {
                 // In case image can't be rendered fallback to plain text
                 Text(text)
             }
-        } else {
+        } else { // macOS 13 and lower
             Text(text)
         }
     }

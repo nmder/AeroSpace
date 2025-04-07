@@ -61,12 +61,12 @@ extension ParserProtocol {
 
 protocol ParserProtocol<S>: Sendable {
     associatedtype T
-    associatedtype S where S: Copyable
+    associatedtype S where S: ConvenienceCopyable
     var keyPath: SendableWritableKeyPath<S, T> { get }
     var parse: @Sendable (TOMLValueConvertible, TomlBacktrace, inout [TomlParseError]) -> ParsedToml<T> { get }
 }
 
-struct Parser<S: Copyable, T>: ParserProtocol {
+struct Parser<S: ConvenienceCopyable, T>: ParserProtocol {
     let keyPath: SendableWritableKeyPath<S, T>
     let parse: @Sendable (TOMLValueConvertible, TomlBacktrace, inout [TomlParseError]) -> ParsedToml<T>
 
@@ -252,7 +252,7 @@ func parseTomlArray(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> 
     raw.array.orFailure(expectedActualTypeError(expected: .array, actual: raw.type, backtrace))
 }
 
-func parseTable<T: Copyable>(
+func parseTable<T: ConvenienceCopyable>(
     _ raw: TOMLValueConvertible,
     _ initial: T,
     _ fieldsParser: [String: any ParserProtocol<T>],
@@ -314,7 +314,7 @@ indirect enum TomlBacktrace: CustomStringConvertible, Equatable {
 
     var description: String {
         return switch self {
-            case .root: errorT("Impossible")
+            case .root: dieT("Impossible")
             case .rootKey(let value): value
             case .key(let value): "." + value
             case .index(let index): "[\(index)]"
@@ -334,7 +334,7 @@ indirect enum TomlBacktrace: CustomStringConvertible, Equatable {
             if case .key(let newRoot) = rhs {
                 return .rootKey(newRoot)
             } else {
-                error("Impossible")
+                die("Impossible")
             }
         } else {
             return pair(lhs, rhs)
@@ -343,7 +343,7 @@ indirect enum TomlBacktrace: CustomStringConvertible, Equatable {
 }
 
 extension TOMLTable {
-    func parseTable<T: Copyable>(
+    func parseTable<T: ConvenienceCopyable>(
         _ initial: T,
         _ fieldsParser: [String: any ParserProtocol<T>],
         _ backtrace: TomlBacktrace,

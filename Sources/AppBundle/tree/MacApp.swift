@@ -38,7 +38,7 @@ final class MacApp: AbstractApp {
     static func getOrRegister(_ nsApp: NSRunningApplication) async throws -> MacApp? {
         // Don't perceive any of the lock screen windows as real windows
         // Otherwise, false positive ax notifications might trigger that lead to gcWindows
-        if nsApp.bundleIdentifier == lockScreenAppBundleId {
+        if [lockScreenAppBundleId, widgetAppBundleId].contains(nsApp.bundleIdentifier) {
             return nil
         }
         let pid = nsApp.processIdentifier

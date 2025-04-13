@@ -5,7 +5,7 @@ func resizedObs(_ obs: AXObserver, ax: AXUIElement, notif: CFString, data: Unsaf
     let notif = notif as String
     let windowId = ax.containingWindowId()
     Task { @MainActor in
-        if TrayMenuModel.shared.isEnabled { return }
+        if !TrayMenuModel.shared.isEnabled { return }
         if let windowId, let window = Window.get(byId: windowId) {
             try await resizeWithMouseIfTheCase(window)
         }
@@ -31,7 +31,7 @@ private func resizeWithMouseIfTheCase(_ window: Window) async throws { // todo c
     if try await (window.isHiddenInCorner || // Don't allow to resize windows of hidden workspaces
         !isLeftMouseButtonDown ||
         currentlyManipulatedWithMouseWindowId != nil && window.windowId != currentlyManipulatedWithMouseWindowId)
-        .orAsyncMainActor({ try await getNativeFocusedWindow() != window })
+        .orAsync({ @Sendable @MainActor in try await getNativeFocusedWindow() != window })
     {
         return
     }

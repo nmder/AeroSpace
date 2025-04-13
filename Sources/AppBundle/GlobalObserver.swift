@@ -11,7 +11,11 @@ class GlobalObserver {
         let notifName = notification.name.rawValue
         Task { @MainActor in
             if !TrayMenuModel.shared.isEnabled { return }
-            runRefreshSession(.globalObserver(notifName), screenIsDefinitelyUnlocked: false)
+            if notifName == NSWorkspace.didActivateApplicationNotification.rawValue {
+                runRefreshSession(.globalObserver(notifName), screenIsDefinitelyUnlocked: false, optimisticallyPreLayoutWorkspaces: true)
+            } else {
+                runRefreshSession(.globalObserver(notifName), screenIsDefinitelyUnlocked: false)
+            }
         }
     }
 
@@ -47,7 +51,6 @@ class GlobalObserver {
         nc.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.didHideApplicationNotification, object: nil, queue: .main, using: onHideApp)
         nc.addObserver(forName: NSWorkspace.didUnhideApplicationNotification, object: nil, queue: .main, using: onNotif)
-        nc.addObserver(forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main, using: onNotif)
 

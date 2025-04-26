@@ -85,6 +85,7 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     result["Aero.App.versionShort"] = .fromOrDie(appInfoDic["CFBundleShortVersionString"])
     result["Aero.App.version"] = .fromOrDie(appInfoDic["CFBundleVersion"])
     result["Aero.App.nsApp.activationPolicy"] = .string(window.macApp.nsApp.activationPolicy.prettyDescription)
+    result["Aero.App.nsApp.execPath"] = .string(window.macApp.nsApp.executableURL.prettyDescription)
 
     result["Aero.AXApp"] = .dict(try await window.macApp.dumpAppAxInfo())
     // todo add app bundle version to debug log
@@ -95,7 +96,8 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     }
     result["Aero.on-window-detected"] = .array(matchingCallbacks)
 
-    return (JSONEncoder.aeroSpaceDefault.encodeToString(result) ?? "nil").prefixLines(with: "\(window.app.bundleId ?? "nil-bundle-id") ||| ")
+    return (JSONEncoder.aeroSpaceDefault.encodeToString(result) ?? "nil")
+        .prefixLines(with: "\(window.app.bundleId ?? "nil-bundle-id").\(window.windowId) ||| ")
 }
 
 @MainActor

@@ -34,12 +34,12 @@ if /bin/test -z "${NUKE_PATH:-}"; then
     export NUKE_PATH=1
 fi
 
-_swift() {
+swift() {
     if /usr/bin/which swiftly &> /dev/null; then
         swiftly run swift "$@"
     else
         echo "warning: swiftly is not installed. Fallback to plain swift. Swift compilation might not be reproducible" > /dev/stderr
-        swift "$@"
+        /usr/bin/env swift "$@"
     fi
 }
 
@@ -51,8 +51,11 @@ xcodebuild() {
     # Thread:   <_NSMainThread: 0x6000037202c0>{number = 1, name = main}
     # Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
     if /usr/bin/which xcbeautify &> /dev/null; then
-        /usr/bin/xcodebuild "$@" 2>&1 | xcbeautify --quiet # Only print tasks that have warnings or errors
+        rm -rf .release/xcodebuild.log
+        mkdir -p .release
+        /usr/bin/xcrun xcodebuild "$@" 2>&1 | tee .release/xcodebuild.log | xcbeautify --quiet # Only print tasks that have warnings or errors
+        echo "The full unmodified xcodebuild log is saved to .release/xcodebuild.log"
     else
-        /usr/bin/xcodebuild "$@" 2>&1
+        /usr/bin/xcrun xcodebuild "$@"
     fi
 }

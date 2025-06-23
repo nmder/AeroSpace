@@ -10,11 +10,11 @@ public struct ListModesCmdArgs: CmdArgs {
         options: [
             "--current": trueBoolFlag(\.current),
         ],
-        arguments: []
+        arguments: [],
     )
 
-    public var windowId: UInt32?               // unused
-    public var workspaceName: WorkspaceName?   // unused
+    /*conforms*/ public var windowId: UInt32?
+    /*conforms*/ public var workspaceName: WorkspaceName?
     public var current: Bool = false
 }
 

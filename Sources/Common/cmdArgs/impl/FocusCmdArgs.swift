@@ -1,6 +1,3 @@
-private let boundar = "<boundary>"
-private let actio = "<action>"
-
 public struct FocusCmdArgs: CmdArgs {
     public let rawArgs: EquatableNoop<[String]>
     fileprivate init(rawArgs: [String]) { self.rawArgs = .init(rawArgs) }
@@ -15,7 +12,7 @@ public struct FocusCmdArgs: CmdArgs {
             "--window-id": ArgParser(\.windowId, upcastArgParserFun(parseArgWithUInt32)),
             "--dfs-index": ArgParser(\.dfsIndex, upcastArgParserFun(parseArgWithUInt32)),
         ],
-        arguments: [ArgParser(\.direction, upcastArgParserFun(parseCardinalDirectionArg))]
+        arguments: [ArgParser(\.direction, upcastArgParserFun(parseCardinalDirectionArg))],
     )
 
     public var rawBoundaries: Boundaries? = nil // todo cover boundaries wrapping with tests
@@ -23,8 +20,8 @@ public struct FocusCmdArgs: CmdArgs {
     public var dfsIndex: UInt32? = nil
     public var direction: CardinalDirection? = nil
     public var floatingAsTiling: Bool = true
-    public var windowId: UInt32?
-    public var workspaceName: WorkspaceName?
+    /*conforms*/ public var windowId: UInt32?
+    /*conforms*/ public var workspaceName: WorkspaceName?
 
     public init(rawArgs: [String], direction: CardinalDirection) {
         self.rawArgs = .init(rawArgs)
@@ -43,7 +40,7 @@ public struct FocusCmdArgs: CmdArgs {
 
     public enum Boundaries: String, CaseIterable, Equatable, Sendable {
         case workspace
-        case allMonitorsUnionFrame = "all-monitors-outer-frame"
+        case allMonitorsOuterFrame = "all-monitors-outer-frame"
     }
     public enum WhenBoundariesCrossed: String, CaseIterable, Equatable, Sendable {
         case stop = "stop"
@@ -59,8 +56,8 @@ public enum FocusCmdTarget {
     case dfsIndex(UInt32)
 }
 
-public extension FocusCmdArgs {
-    var target: FocusCmdTarget {
+extension FocusCmdArgs {
+    public var target: FocusCmdTarget {
         if let direction {
             return .direction(direction)
         }
@@ -73,8 +70,8 @@ public extension FocusCmdArgs {
         die("Parser invariants are broken")
     }
 
-    var boundaries: Boundaries { rawBoundaries ?? .workspace }
-    var boundariesAction: WhenBoundariesCrossed { rawBoundariesAction ?? .stop }
+    public var boundaries: Boundaries { rawBoundaries ?? .workspace }
+    public var boundariesAction: WhenBoundariesCrossed { rawBoundariesAction ?? .stop }
 }
 
 public func parseFocusCmdArgs(_ args: [String]) -> ParsedCmd<FocusCmdArgs> {
@@ -88,10 +85,10 @@ public func parseFocusCmdArgs(_ args: [String]) -> ParsedCmd<FocusCmdArgs> {
             $0.direction != nil || $0.windowId != nil || $0.dfsIndex != nil
         }
         .filter("--window-id is incompatible with other options") {
-            $0.windowId == nil || $0 == FocusCmdArgs(rawArgs: args, windowId: $0.windowId!)
+            $0.windowId == nil || $0 == FocusCmdArgs(rawArgs: args, windowId: $0.windowId.orDie())
         }
         .filter("--dfs-index is incompatible with other options") {
-            $0.dfsIndex == nil || $0 == FocusCmdArgs(rawArgs: args, dfsIndex: $0.dfsIndex!)
+            $0.dfsIndex == nil || $0 == FocusCmdArgs(rawArgs: args, dfsIndex: $0.dfsIndex.orDie())
         }
 }
 
@@ -99,7 +96,7 @@ private func parseBoundariesAction(arg: String, nextArgs: inout [String]) -> Par
     if let arg = nextArgs.nextNonFlagOrNil() {
         return parseEnum(arg, FocusCmdArgs.WhenBoundariesCrossed.self)
     } else {
-        return .failure("\(actio) is mandatory")
+        return .failure("<action> is mandatory")
     }
 }
 
@@ -107,6 +104,6 @@ private func parseBoundaries(arg: String, nextArgs: inout [String]) -> Parsed<Fo
     if let arg = nextArgs.nextNonFlagOrNil() {
         return parseEnum(arg, FocusCmdArgs.Boundaries.self)
     } else {
-        return .failure("\(boundar) is mandatory")
+        return .failure("<boundary> is mandatory")
     }
 }

@@ -11,7 +11,7 @@ private let disclaimer =
 
 @MainActor private var debugWindowsState: DebugWindowsState = .notRecording
 @MainActor private var debugWindowsLog: OrderedDictionary<UInt32, String> = [:]
-private let debugWindowsLimit = 5
+private let debugWindowsLimit = 10
 
 enum DebugWindowsState {
     case recording
@@ -47,7 +47,7 @@ struct DebugWindowsCommand: Command {
                     Debug windows session has started
                     1. Focus the problematic window
                     2. Run 'aerospace debug-windows' once again to finish the session and get the results
-                    """
+                    """,
                 )
                 // Make sure that the Terminal window that started the recording is recorded first
                 guard let target = args.resolveTargetOrReportError(env, io) else { return false }
@@ -60,7 +60,7 @@ struct DebugWindowsCommand: Command {
                     """
                     Recording of the previous session was aborted after \(debugWindowsLimit) windows has been focused
                     Run the command one more time to start new debug session
-                    """
+                    """,
                 )
                 debugWindowsState = .notRecording
                 debugWindowsLog = [:]
@@ -79,8 +79,6 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     result["Aero.axWindowId"] = .newOrDie(window.windowId)
     result["Aero.workspace"] = .string(window.nodeWorkspace?.name ?? "nil")
     result["Aero.treeNodeParent"] = .newOrDie(String(describing: window.parent))
-    result["Aero.isWindowHeuristic"] = .newOrDie(try await window.isWindowHeuristic())
-    result["Aero.isDialogHeuristic"] = .newOrDie(try await window.isDialogHeuristic())
     result["Aero.macOS.version"] = .string(ProcessInfo().operatingSystemVersionString) // because built-in apps might behave differently depending on the OS version
     result["Aero.App.appBundleId"] = .newOrDie(window.app.bundleId)
     result["Aero.App.versionShort"] = .newOrDie(appInfoDic["CFBundleShortVersionString"])
@@ -88,6 +86,11 @@ private func dumpWindowDebugInfo(_ window: Window) async throws -> String {
     result["Aero.App.nsApp.activationPolicy"] = .string(window.macApp.nsApp.activationPolicy.prettyDescription)
     result["Aero.App.nsApp.execPath"] = .string(window.macApp.nsApp.executableURL.prettyDescription)
     result["Aero.AXApp"] = .dict(try await window.macApp.dumpAppAxInfo())
+
+    let isDialog = try await window.isDialogHeuristic()
+    let isWindow = try await window.isWindowHeuristic()
+    result["Aero.AxUiElementWindowType"] = .newOrDie(AxUiElementWindowType.new(isWindow: isWindow, isDialog: { isDialog }).rawValue)
+    result["Aero.AxUiElementWindowType_isDialogHeuristic"] = .newOrDie(isDialog)
 
     var matchingCallbacks: [Json] = []
     for callback in config.onWindowDetected where try await callback.matches(window) {

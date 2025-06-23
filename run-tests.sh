@@ -10,11 +10,13 @@ swift test
 ./.debug/aerospace -v | grep -q "0.0.0-SNAPSHOT SNAPSHOT"
 ./.debug/aerospace --version | grep -q "0.0.0-SNAPSHOT SNAPSHOT"
 
-./script/install-dep.sh --swiftformat
-./.deps/swiftformat/swiftformat .
+./swiftformat.sh
 
 ./script/install-dep.sh --swiftlint
 ./.deps/swiftlint/swiftlint lint --quiet
 
 ./generate.sh --all
 ./script/check-uncommitted-files.sh
+
+echo
+echo "All tests have passed successfully"

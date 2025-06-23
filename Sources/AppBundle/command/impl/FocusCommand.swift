@@ -44,7 +44,7 @@ struct FocusCommand: Command {
     _ target: LiveFocus,
     _ io: CmdIo,
     _ args: FocusCmdArgs,
-    _ direction: CardinalDirection
+    _ direction: CardinalDirection,
 ) -> Bool {
     switch args.boundaries {
         case .workspace:
@@ -54,10 +54,10 @@ struct FocusCommand: Command {
                 case .wrapAroundTheWorkspace: wrapAroundTheWorkspace(target, io, direction)
                 case .wrapAroundAllMonitors: dieT("Must be discarded by args parser")
             }
-        case .allMonitorsUnionFrame:
+        case .allMonitorsOuterFrame:
             let currentMonitor = target.workspace.workspaceMonitor
             guard let (monitors, index) = currentMonitor.findRelativeMonitor(inDirection: direction) else {
-                return io.err("Can't find monitor in direction \(direction)")
+                return io.err("Should never happen. Can't find the current monitor")
             }
 
             if let targetMonitor = monitors.getOrNil(atIndex: index) {
@@ -74,7 +74,7 @@ struct FocusCommand: Command {
     _ io: CmdIo,
     _ args: FocusCmdArgs,
     _ direction: CardinalDirection,
-    _ wrappedMonitor: Monitor
+    _ wrappedMonitor: Monitor,
 ) -> Bool {
     switch args.boundariesAction {
         case .stop:
@@ -110,8 +110,8 @@ struct FocusCommand: Command {
         guard let targetCenter = try await target.getCenter() else { continue }
         guard let tilingParent = target.parent as? TilingContainer else { continue }
         let index = center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-            ? target.ownIndex + 1
-            : target.ownIndex
+            ? target.ownIndex.orDie() + 1
+            : target.ownIndex.orDie()
         let data = window.unbindFromParent()
         _floatingWindows.append(FloatingWindowData(window: window, center: center, parent: tilingParent, adaptiveWeight: data.adaptiveWeight, index: index))
     }
@@ -142,9 +142,9 @@ private struct FloatingWindowData {
     let index: Int
 }
 
-private extension TreeNode {
+extension TreeNode {
     @MainActor
-    func findFocusTargetRecursive(snappedTo direction: CardinalDirection) -> Window? {
+    fileprivate func findFocusTargetRecursive(snappedTo direction: CardinalDirection) -> Window? {
         switch nodeCases {
             case .workspace(let workspace):
                 return workspace.rootTilingContainer.findFocusTargetRecursive(snappedTo: direction)

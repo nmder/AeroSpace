@@ -10,13 +10,13 @@ struct WorkspaceCommand: Command {
         let focusedWs = target.workspace
         let workspaceName: String
         switch args.target.val {
-            case .relative(let isNext):
+            case .relative(let nextPrev):
                 let workspace = getNextPrevWorkspace(
                     current: focusedWs,
-                    isNext: isNext,
+                    isNext: nextPrev == .next,
                     wrapAround: args.wrapAround,
                     stdin: io.readStdin(),
-                    target: target
+                    target: target,
                 )
                 guard let workspace else { return false }
                 workspaceName = workspace.name

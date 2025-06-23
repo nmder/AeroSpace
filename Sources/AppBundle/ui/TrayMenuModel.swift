@@ -17,7 +17,7 @@ public class TrayMenuModel: ObservableObject {
 @MainActor func updateTrayText() {
     let sortedMonitors = sortedMonitors
     let focus = focus
-    TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first?.lets { "[\($0.uppercased())] " } ?? "") +
+    TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first.map { "[\($0.uppercased())] " } ?? "") +
         sortedMonitors
         .map {
             ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + $0.activeWorkspace.name
@@ -30,13 +30,13 @@ public class TrayMenuModel: ObservableObject {
             suffix: monitor,
             isFocused: focus.workspace == $0,
             isEffectivelyEmpty: $0.isEffectivelyEmpty,
-            isVisible: $0.isVisible
+            isVisible: $0.isVisible,
         )
     }
     var items = sortedMonitors.map {
         TrayItem(type: .workspace, name: $0.activeWorkspace.name, isActive: $0.activeWorkspace == focus.workspace)
     }
-    let mode = activeMode?.takeIf { $0 != mainModeId }?.first?.lets { TrayItem(type: .mode, name: $0.uppercased(), isActive: true) }
+    let mode = activeMode?.takeIf { $0 != mainModeId }?.first.map { TrayItem(type: .mode, name: $0.uppercased(), isActive: true) }
     if let mode {
         items.insert(mode, at: 0)
     }

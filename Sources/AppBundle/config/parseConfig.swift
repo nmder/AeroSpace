@@ -38,7 +38,7 @@ enum TomlParseError: Error, CustomStringConvertible, Equatable {
     var description: String {
         return switch self {
             // todo Make 'split' + flatten normalization prettier
-            case .semantic(let backtrace, let message): backtrace.isRoot ? message : "\(backtrace): \(message)"
+            case .semantic(let backtrace, let message): backtrace.isEmptyRoot ? message : "\(backtrace): \(message)"
             case .syntax(let message): message
         }
     }
@@ -175,7 +175,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
 
     var errors: [TomlParseError] = []
 
-    var config = rawTable.parseTable(Config(), configParser, .root, &errors)
+    var config = rawTable.parseTable(Config(), configParser, .emptyRoot, &errors)
 
     if let mapping = rawTable[keyMappingConfigRootKey].flatMap({ parseKeyMapping($0, .rootKey(keyMappingConfigRootKey), &errors) }) {
         config.keyMapping = mapping
@@ -199,7 +199,7 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
             .contains { $0 is SplitCommand }
         if containsSplitCommand {
             errors += [.semantic(
-                .root, // todo Make 'split' + flatten normalization prettier
+                .emptyRoot, // todo Make 'split' + flatten normalization prettier
                 """
                 The config contains:
                 1. usage of 'split' command
@@ -314,7 +314,7 @@ func parseBool(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace) -> Parse
 }
 
 indirect enum TomlBacktrace: CustomStringConvertible, Equatable {
-    case root
+    case emptyRoot
     case rootKey(String)
     case key(String)
     case index(Int)
@@ -322,7 +322,7 @@ indirect enum TomlBacktrace: CustomStringConvertible, Equatable {
 
     var description: String {
         return switch self {
-            case .root: dieT("Impossible")
+            case .emptyRoot: dieT("Impossible")
             case .rootKey(let value): value
             case .key(let value): "." + value
             case .index(let index): "[\(index)]"
@@ -330,15 +330,22 @@ indirect enum TomlBacktrace: CustomStringConvertible, Equatable {
         }
     }
 
-    var isRoot: Bool {
+    var isEmptyRoot: Bool {
         return switch self {
-            case .root: true
+            case .emptyRoot: true
+            default: false
+        }
+    }
+
+    var isRootKey: Bool {
+        return switch self {
+            case .rootKey: true
             default: false
         }
     }
 
     static func + (lhs: TomlBacktrace, rhs: TomlBacktrace) -> TomlBacktrace {
-        if case .root = lhs {
+        if case .emptyRoot = lhs {
             if case .key(let newRoot) = rhs {
                 return .rootKey(newRoot)
             } else {
@@ -373,7 +380,7 @@ extension TOMLTable {
 }
 
 func unknownKeyError(_ backtrace: TomlBacktrace) -> TomlParseError {
-    .semantic(backtrace, "Unknown key")
+    .semantic(backtrace, backtrace.isRootKey ? "Unknown top-level key" : "Unknown key")
 }
 
 func expectedActualTypeError(expected: TOMLType, actual: TOMLType, _ backtrace: TomlBacktrace) -> TomlParseError {

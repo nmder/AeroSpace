@@ -42,6 +42,9 @@ let focus_help_generated = """
     USAGE: focus [-h|--help] [--ignore-floating]
                  [--boundaries <boundary>] [--boundaries-action <action>]
                  (left|down|up|right)
+       OR: focus [-h|--help] [--ignore-floating]
+                 [--boundaries <boundary>] [--boundaries-action <action>]
+                 (dfs-next|dfs-prev)
        OR: focus [-h|--help] --window-id <window-id>
        OR: focus [-h|--help] --dfs-index <dfs-index>
     """
@@ -64,7 +67,7 @@ let list_exec_env_vars_help_generated = """
     USAGE: list-exec-env-vars [-h|--help]
     """
 let list_modes_help_generated = """
-    USAGE: list-modes [-h|--help] [--current]
+    USAGE: list-modes [-h|--help] [--current] [--count] [--json]
     """
 let list_monitors_help_generated = """
     USAGE: list-monitors [-h|--help] [--focused [no]] [--mouse [no]] [--format <output-format>] [--count] [--json]
@@ -127,6 +130,11 @@ let split_help_generated = """
     """
 let summon_workspace_help_generated = """
     USAGE: summon-workspace [-h|--help] [--fail-if-noop] <workspace>
+    """
+let swap_help_generated = """
+    USAGE: swap [-h|--help] [--window-id <window-id>] [--swap-focus]
+                [--wrap-around]
+                (left|down|up|right|dfs-next|dfs-prev)
     """
 let trigger_binding_help_generated = """
     USAGE: trigger-binding [-h|--help] <binding> --mode <mode-id>

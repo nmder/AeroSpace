@@ -45,6 +45,8 @@ final class MacApp: AbstractApp {
             return nil
         }
         let pid = nsApp.processIdentifier
+        // AX requests crash if you send them to yourself
+        if pid == myPid { return nil }
 
         while true {
             if let existing = allAppsMap[pid] { return existing }

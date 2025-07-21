@@ -12,9 +12,11 @@ public func getMessageWindow(messageModel: MessageModel) -> some Scene {
                 NSApplication.shared.windows.forEach {
                     if $0.identifier?.rawValue == messageWindowId {
                         $0.level = .floating
+                        $0.styleMask.remove(.miniaturizable) // Disable minimize button, because we don't unminimize the window on config error
                     }
                 }
             }
+        // .windowMinimizeBehavior(WindowInteractionBehavior.disabled) // SwiftUI way of hiding minimize button. Available only since macOS 15
     }
     .windowResizability(.contentMinSize)
     //.windowLevel(.floating) //This might be the SwiftUI way of doing window level instead of the onAppear block above, but it's only available from macOS 15.0
@@ -45,14 +47,17 @@ public struct MessageView: View {
             ScrollView {
                 VStack(alignment: .leading) {
                     HStack {
-                        TextEditor(text: .constant(model.message?.body ?? ""))
+                        let cancelOnEnterBinding: Binding<String> = Binding(
+                            get: { model.message?.body ?? "" },
+                            set: { newText in
+                                if let prev = model.message?.body.count(where: \.isNewline), newText.count(where: \.isNewline) > prev {
+                                    model.message = nil
+                                }
+                            },
+                        )
+                        TextEditor(text: cancelOnEnterBinding)
                             .font(.system(size: 12).monospaced())
                             .focused($focus)
-                            .onExitCommand {
-                                // Escape to remove focus from the TextEditor, and then you can hit Return to trigger the Close,
-                                // or use 'CMD + ,' for open config and 'CMD + R' for reload config (same as the menu shortcuts)
-                                focus = false
-                            }
                         Spacer()
                     }
                     Spacer()
@@ -67,14 +72,12 @@ public struct MessageView: View {
                 if let type = model.message?.type {
                     switch type {
                         case .config:
-                            reloadConfigButton
-                            openConfigButton
+                            reloadConfigButton(showShortcutGroup: true)
+                            openConfigButton(showShortcutGroup: true)
                     }
                 }
-                Button("Close") {
-                    model.message = nil
-                }
-                .keyboardShortcut(.defaultAction)
+                let closeButton = Button("Close") { model.message = nil }.keyboardShortcut(.defaultAction)
+                shortcutGroup(label: Image(systemName: "return.left"), content: closeButton)
             }
             .padding()
         }

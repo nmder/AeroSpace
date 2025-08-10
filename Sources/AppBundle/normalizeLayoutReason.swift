@@ -1,3 +1,5 @@
+import AppKit
+
 @MainActor
 func normalizeLayoutReason() async throws {
     for workspace in Workspace.all {
@@ -43,6 +45,13 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     }
                 } else if config.crossWorkspaceFloatingWindows && parent.kind == .workspace && !workspace.isVisible  {
+                    guard let size = try await window.getAxSize(),
+                          let topLeft = try await window.getAxTopLeftCorner() else { continue }
+                    let dTopX = max(0, topLeft.x + size.width - focus.workspace.workspaceMonitor.width)
+                    let dTopY = max(0, topLeft.y + size.height - focus.workspace.workspaceMonitor.height)
+                    if dTopX > 0 || dTopY > 0 {
+                        window.setAxTopLeftCorner(CGPoint(x: topLeft.x - dTopX, y: topLeft.y - dTopY))
+                    }
                     window.bindAsFloatingWindow(to: focus.workspace)
                 }
             case .macos(let prevParentKind):

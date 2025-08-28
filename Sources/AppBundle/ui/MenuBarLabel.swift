@@ -75,6 +75,16 @@ struct MenuBarLabel: View {
                     }
                 }
                 .frame(height: itemSize)
+            } else if let workspaces {
+                let orderedWorkspaces = workspaces.filter { !$0.isEffectivelyEmpty || $0.isVisible }
+                if !orderedWorkspaces.isEmpty {
+                    HStack(spacing: hStackSpacing) {
+                        ForEach(orderedWorkspaces, id: \.name) { item in
+                            itemView(for: TrayItem(type: .workspace, name: item.name, isActive: item.isFocused))
+                                .opacity(item.isVisible ? 1 : 0.5)
+                        }
+                    }
+                }
             } else {
                 HStack(spacing: hStackSpacing) {
                     Text(text)

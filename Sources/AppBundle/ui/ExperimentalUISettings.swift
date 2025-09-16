@@ -43,47 +43,29 @@ func getExperimentalUISettingsMenu(viewModel: TrayMenuModel) -> some View {
     let color = AppearanceTheme.current == .dark ? Color.white : Color.black
     return Menu {
         Text("Menu bar style (macOS 14 or later):")
-        Button {
-            viewModel.experimentalUISettings.displayStyle = .monospacedText
-        } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == .monospacedText)) {
-                MenuBarLabel(viewModel.trayText, color: color)
-                Text(" -  " + MenuBarStyle.monospacedText.title)
-            }
-        }
-        Button {
-            viewModel.experimentalUISettings.displayStyle = .systemText
-        } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == .systemText)) {
-                MenuBarLabel(viewModel.trayText, textStyle: .system, color: color)
-                Text(" -  " + MenuBarStyle.systemText.title)
-            }
-        }
-        Button {
-            viewModel.experimentalUISettings.displayStyle = .squares
-        } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == .squares)) {
-                MenuBarLabel(viewModel.trayText, color: color, trayItems: viewModel.trayItems)
-                Text(" -  " + MenuBarStyle.squares.title)
-            }
-        }
-        Button {
-            viewModel.experimentalUISettings.displayStyle = .i3
-        } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == .i3)) {
-                MenuBarLabel(viewModel.trayText, color: color, trayItems: viewModel.trayItems, workspaces: viewModel.workspaces)
-                Text(" -  " + MenuBarStyle.i3.title)
-            }
-        }
-        Button {
-            viewModel.experimentalUISettings.displayStyle = .i3Ordered
-        } label: {
-            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == .i3Ordered)) {
-                MenuBarLabel(viewModel.trayText, color: color, workspaces: viewModel.workspaces)
-                Text(" -  " + MenuBarStyle.i3Ordered.title)
-            }
+        ForEach(MenuBarStyle.allCases, id: \.id) { style in
+            MenuBarStyleButton(style: style, color: color).environmentObject(viewModel)
         }
     } label: {
         Text("Experimental UI Settings (No stability guarantees)")
+    }
+}
+
+@MainActor
+struct MenuBarStyleButton: View {
+    @EnvironmentObject var viewModel: TrayMenuModel
+    let style: MenuBarStyle
+    let color: Color
+
+    var body: some View {
+        Button {
+            viewModel.experimentalUISettings.displayStyle = style
+        } label: {
+            Toggle(isOn: .constant(viewModel.experimentalUISettings.displayStyle == style)) {
+                MenuBarLabel(style: style, color: color)
+                    .environmentObject(viewModel)
+                Text(" -  " + style.title)
+            }
+        }
     }
 }

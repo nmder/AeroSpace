@@ -57,7 +57,9 @@ extension AxUiElementMock {
             id != "com.github.wez.wezterm" &&
             !isQutebrowser && // :set window.hide_decoration
             id != "com.googlecode.iterm2" &&
-            id != "org.gnu.Emacs"
+            id != "org.gnu.Emacs" &&
+            id != "com.microsoft.VSCode" && id != "com.vscodium" && // "window.nativeFullScreen": false
+            id != "com.valvesoftware.steam.helper"
         {
             return true
         }
@@ -82,7 +84,7 @@ extension AxUiElementMock {
             return false
         }
 
-        if activationPolicy == .accessory && get(Ax.closeButtonAttr) == nil {
+        if activationPolicy == .accessory && get(Ax.closeButtonAttr) == nil && appBundleId != "com.valvesoftware.steam.helper" {
             return false
         }
 

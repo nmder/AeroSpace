@@ -20,7 +20,7 @@ public struct ListWindowsCmdArgs: CmdArgs {
             "--app-bundle-id": singleValueOption(\.filteringOptions.appIdFilter, "<app-bundle-id>") { $0 },
 
             // Formatting flags
-            "--format": ArgParser(\._format, parseFormat),
+            "--format": formatParser(\._format, for: .window),
             "--count": trueBoolFlag(\.outputOnlyCount),
             "--json": trueBoolFlag(\.json),
         ],
@@ -82,14 +82,19 @@ public func parseListWindowsCmdArgs(_ args: [String]) -> ParsedCmd<ListWindowsCm
         .flatMap { if $0.json, let msg = getErrorIfFormatIsIncompatibleWithJson($0._format) { .failure(msg) } else { .cmd($0) } }
 }
 
-func parseFormat(arg: String, nextArgs: inout [String]) -> Parsed<[StringInterToken]> {
-    return if let nextArg = nextArgs.nextNonFlagOrNil() {
-        switch nextArg.interpolationTokens(interpolationChar: "%") {
-            case .success(let tokens): .success(tokens)
-            case .failure(let err): .failure("Failed to parse <output-format>. \(err)")
+func formatParser<T: ConvenienceCopyable>(
+    _ keyPath: SendableWritableKeyPath<T, [StringInterToken]>,
+    for kind: AeroObjKind,
+) -> ArgParser<T, [StringInterToken]> {
+    return ArgParser(keyPath) { arg, nextArgs in
+        return if let nextArg = nextArgs.nextNonFlagOrNil() {
+            switch nextArg.interpolationTokens(interpolationChar: "%") {
+                case .success(let tokens): .success(tokens)
+                case .failure(let err): .failure("Failed to parse <output-format>. \(err)")
+            }
+        } else {
+            .failure("<output-format> is mandatory. Possible values:\n\(getAvailableInterVars(for: kind).joined(separator: "\n").prependLines("  "))")
         }
-    } else {
-        .failure("<output-format> is mandatory")
     }
 }
 
@@ -118,4 +123,66 @@ public enum WorkspaceFilter: Equatable, Sendable {
     case focused
     case visible
     case name(WorkspaceName)
+}
+
+public enum FormatVar: Equatable {
+    case window(WindowFormatVar)
+    case workspace(WorkspaceFormatVar)
+    case app(AppFormatVar)
+    case monitor(MonitorFormatVar)
+
+    public enum WindowFormatVar: String, Equatable, CaseIterable {
+        case windowId = "window-id"
+        case windowIsFullscreen = "window-is-fullscreen"
+        case windowTitle = "window-title"
+    }
+
+    public enum WorkspaceFormatVar: String, Equatable, CaseIterable {
+        case workspaceName = "workspace"
+        case workspaceFocused = "workspace-is-focused"
+        case workspaceVisible = "workspace-is-visible"
+    }
+
+    public enum AppFormatVar: String, Equatable, CaseIterable {
+        case appBundleId = "app-bundle-id"
+        case appName = "app-name"
+        case appPid = "app-pid"
+        case appExecPath = "app-exec-path"
+        case appBundlePath = "app-bundle-path"
+    }
+
+    public enum MonitorFormatVar: String, Equatable, CaseIterable {
+        case monitorId = "monitor-id"
+        case monitorAppKitNsScreenScreensId = "monitor-appkit-nsscreen-screens-id"
+        case monitorName = "monitor-name"
+        case monitorIsMain = "monitor-is-main"
+    }
+}
+
+public enum PlainInterVar: String, CaseIterable {
+    case rightPadding = "right-padding"
+    case newline = "newline"
+    case tab = "tab"
+}
+
+public enum AeroObjKind: CaseIterable, Sendable {
+    case window, workspace, app, monitor
+}
+
+public func getAvailableInterVars(for kind: AeroObjKind) -> [String] {
+    _getAvailableInterVars(for: kind) + PlainInterVar.allCases.map(\.rawValue)
+}
+
+private func _getAvailableInterVars(for kind: AeroObjKind) -> [String] {
+    switch kind {
+        case .app: FormatVar.AppFormatVar.allCases.map(\.rawValue)
+        case .monitor: FormatVar.MonitorFormatVar.allCases.map(\.rawValue)
+        case .workspace:
+            FormatVar.WorkspaceFormatVar.allCases.map(\.rawValue) +
+                _getAvailableInterVars(for: .monitor)
+        case .window:
+            FormatVar.WindowFormatVar.allCases.map(\.rawValue) +
+                _getAvailableInterVars(for: .workspace) +
+                _getAvailableInterVars(for: .app)
+    }
 }

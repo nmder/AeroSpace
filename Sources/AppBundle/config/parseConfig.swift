@@ -265,7 +265,7 @@ func parseTable<T: ConvenienceCopyable>(
     _ initial: T,
     _ fieldsParser: [String: any ParserProtocol<T>],
     _ backtrace: TomlBacktrace,
-    _ errors: inout [TomlParseError]
+    _ errors: inout [TomlParseError],
 ) -> T {
     guard let table = raw.table else {
         errors.append(expectedActualTypeError(expected: .table, actual: raw.type, backtrace))
@@ -362,7 +362,7 @@ extension TOMLTable {
         _ initial: T,
         _ fieldsParser: [String: any ParserProtocol<T>],
         _ backtrace: TomlBacktrace,
-        _ errors: inout [TomlParseError]
+        _ errors: inout [TomlParseError],
     ) -> T {
         var raw = initial
 

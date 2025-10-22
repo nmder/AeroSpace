@@ -99,7 +99,7 @@ public struct MessageView: View {
     }
 }
 
-public class MessageModel: ObservableObject {
+public final class MessageModel: ObservableObject {
     @MainActor public static let shared = MessageModel()
     @Published public var message: Message? = nil
 
@@ -122,11 +122,4 @@ public struct Message: Hashable, Equatable {
         self.description = description
         self.body = body
     }
-}
-
-#Preview {
-    MessageView(model: MessageModel.shared)
-        .onAppear {
-            MessageModel.shared.message = Message(type: .config, description: "Description", body: "Body")
-        }
 }

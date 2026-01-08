@@ -5,7 +5,7 @@ struct MoveCommand: Command {
     let args: MoveCmdArgs
     /*conforms*/ var shouldResetClosedWindowsCache = true
 
-    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         let direction = args.direction.val
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         guard let currentWindow = target.windowOrNil else {
@@ -26,7 +26,7 @@ struct MoveCommand: Command {
                             return true
                     }
                 } else {
-                    return moveOut(window: currentWindow, direction: direction, io, args, env)
+                    return try await moveOut(window: currentWindow, direction: direction, io, args, env)
                 }
             case .workspace: // floating window
                 return io.err("moving floating windows isn't yet supported") // todo
@@ -45,7 +45,7 @@ struct MoveCommand: Command {
     _ args: MoveCmdArgs,
     _ direction: CardinalDirection,
     _ env: CmdEnv,
-) -> Bool {
+) async throws -> Bool {
     switch args.boundaries {
         case .workspace:
             switch args.boundariesAction {
@@ -65,7 +65,7 @@ struct MoveCommand: Command {
                     .copy(\.windowId, window.windowId)
                     .copy(\.focusFollowsWindow, focus.windowOrNil == window)
 
-                return MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
+                return try await MoveNodeToMonitorCommand(args: moveNodeToMonitorArgs).run(env, io)
             } else {
                 return hitAllMonitorsOuterFrameBoundaries(window, workspace, io, args, direction)
             }
@@ -96,7 +96,7 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
     _ io: CmdIo,
     _ args: MoveCmdArgs,
     _ env: CmdEnv,
-) -> Bool {
+) async throws -> Bool {
     let innerMostChild = window.parents.first(where: {
         return switch $0.parent?.cases {
             case .tilingContainer(let parent): parent.orientation == direction.orientation
@@ -114,7 +114,7 @@ private let moveOutMacosUnconventionalWindow = "moving macOS fullscreen, minimiz
             window.bind(to: parent, adaptiveWeight: WEIGHT_AUTO, index: ownIndex + direction.insertionOffset)
             return true
         case .workspace(let parent):
-            return hitWorkspaceBoundaries(window, parent, io, args, direction, env)
+            return try await hitWorkspaceBoundaries(window, parent, io, args, direction, env)
         case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
             return io.err(moveOutMacosUnconventionalWindow)
         case .macosPopupWindowsContainer:

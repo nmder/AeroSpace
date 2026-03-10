@@ -41,7 +41,7 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
     let targetContainer: NonLeafTreeNodeObject = window.isFloating ? targetWorkspace : targetWorkspace.rootTilingContainer
     if window.isFloating {
         guard let size = try await window.getAxSize(),
-            let topLeft = try await window.getAxTopLeftCorner()
+            let topLeft = try await window.getAxRect()?.topLeftCorner
             else { return true }
         let dTopX = max(0,
             topLeft.x - focus.workspace.workspaceMonitor.rect.topLeftX

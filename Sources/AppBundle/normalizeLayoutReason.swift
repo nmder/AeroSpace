@@ -47,7 +47,7 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                     }
                 } else if config.crossWorkspaceFloatingWindows && parent.kind == .workspace && !workspace.isVisible  {
                     guard let size = try await window.getAxSize(),
-                          let topLeft = try await window.getAxTopLeftCorner() else { continue }
+                          let topLeft = try await window.getAxRect()?.topLeftCorner else { continue }
                     let dTopX = max(0, topLeft.x + size.width - focus.workspace.workspaceMonitor.width)
                     let dTopY = max(0, topLeft.y + size.height - focus.workspace.workspaceMonitor.height)
                     if dTopX > 0 || dTopY > 0 {

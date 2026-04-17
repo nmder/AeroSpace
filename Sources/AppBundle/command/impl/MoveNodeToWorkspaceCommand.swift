@@ -5,14 +5,14 @@ struct MoveNodeToWorkspaceCommand: Command {
     let args: MoveNodeToWorkspaceCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache: Bool = true
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
-        guard let target = args.resolveTargetOrReportError(env, io) else { return false }
-        guard let window = target.windowOrNil else { return io.err(noWindowIsFocused) }
+    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> BinaryExitCode {
+        guard let target = args.resolveTargetOrReportError(env, io) else { return .fail }
+        guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
         let subjectWs = window.nodeWorkspace
         let targetWorkspace: Workspace
         switch args.target.val {
             case .relative(let nextPrev):
-                guard let subjectWs else { return io.err("Window \(window.windowId) doesn't belong to any workspace") }
+                guard let subjectWs else { return .fail(io.err("Window \(window.windowId) doesn't belong to any workspace")) }
                 let ws = getNextPrevWorkspace(
                     current: subjectWs,
                     isNext: nextPrev == .next,
@@ -20,7 +20,7 @@ struct MoveNodeToWorkspaceCommand: Command {
                     stdin: args.useStdin ? io.readStdin() : nil,
                     target: target,
                 )
-                guard let ws else { return io.err("Can't resolve next or prev workspace") }
+                guard let ws else { return .fail(io.err("Can't resolve next or prev workspace")) }
                 targetWorkspace = ws
             case .direct(let name):
                 targetWorkspace = Workspace.get(byName: name.raw)
@@ -31,18 +31,19 @@ struct MoveNodeToWorkspaceCommand: Command {
 
 @MainActor
 func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io: CmdIo, focusFollowsWindow: Bool,
-    failIfNoop: Bool, index: Int = INDEX_BIND_LAST) async throws -> Bool {
+    failIfNoop: Bool, index: Int = INDEX_BIND_LAST) async throws -> BinaryExitCode {
     if window.nodeWorkspace == targetWorkspace {
-        if !failIfNoop {
-            io.err("Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code")
+        return switch failIfNoop {
+            case true: .fail
+            case false:
+                .succ(io.err("Window '\(window.windowId)' already belongs to workspace '\(targetWorkspace.name)'. Tip: use --fail-if-noop to exit with non-zero code"))
         }
-        return !failIfNoop
     }
     let targetContainer: NonLeafTreeNodeObject = window.isFloating ? targetWorkspace : targetWorkspace.rootTilingContainer
     if window.isFloating {
         guard let size = try await window.getAxSize(),
             let topLeft = try await window.getAxRect()?.topLeftCorner
-            else { return true }
+            else { return .succ }
         let dTopX = max(0,
             topLeft.x - focus.workspace.workspaceMonitor.rect.topLeftX
             + size.width - targetWorkspace.workspaceMonitor.width)
@@ -57,5 +58,5 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
             nil)
     }
     window.bind(to: targetContainer, adaptiveWeight: WEIGHT_AUTO, index: index)
-    return focusFollowsWindow ? window.focusWindow() : true
+    return .from(bool: focusFollowsWindow ? window.focusWindow() : true)
 }

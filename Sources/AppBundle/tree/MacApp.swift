@@ -70,7 +70,7 @@ final class MacApp: AbstractApp {
                     let subscriptions = (try? unsafe AxSubscription.bulkSubscribe(nsApp, axApp, job, handlers)) ?? []
                     let isGood = !subscriptions.isEmpty
                     let app = isGood ? MacApp(nsApp, axApp, subscriptions, Thread.current) : nil
-                    Task { @MainActor in
+                    Task.startUnstructured { @MainActor in
                         allAppsMap[pid] = app
                         await wip.signalToAll()
                         wipPids[pid] = nil
@@ -142,12 +142,18 @@ final class MacApp: AbstractApp {
         }
     }
 
-    func setAxFrameBlocking(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) async throws {
+    func setAxFrameForTermination(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
-        try await withWindow(windowId) { [axApp] window, job in
-            try disableAnimations(app: axApp.threadGuarded, job) {
+        let semaphore = DispatchSemaphore(value: 0)
+        let job = withWindowAsync(windowId) { [axApp] window, job in
+            try? disableAnimations(app: axApp.threadGuarded, job) {
                 try setFrame(window, topLeft, size, job)
             }
+            semaphore.signal()
+        }
+        switch job.isCancelled {
+            case true: return
+            case false: semaphore.wait()
         }
     }
 
@@ -158,10 +164,17 @@ final class MacApp: AbstractApp {
     }
 
     func getAxRect(_ windowId: UInt32) async throws -> Rect? {
-        try await withWindow(windowId) { window, job in
-            guard let topLeftCorner = window.get(Ax.topLeftCornerAttr) else { return nil }
-            guard let size = window.get(Ax.sizeAttr) else { return nil }
-            return Rect(topLeftX: topLeftCorner.x, topLeftY: topLeftCorner.y, width: size.width, height: size.height)
+        try await withWindow(windowId) { window, job in try AppBundle.getAxRect(window: window, job: job) }
+    }
+
+    func getAxRectForTermination(_ windowId: UInt32) -> Rect? {
+        let future = CompletableFuture<Rect?>()
+        let job = withWindowAsync(windowId) { window, job in
+            future.complete(try AppBundle.getAxRect(window: window, job: job))
+        }
+        return switch job.isCancelled {
+            case true: nil
+            case false: future.blockingGet()
         }
     }
 
@@ -302,7 +315,7 @@ final class MacApp: AbstractApp {
     }
 
     private func destroy() async {
-        _ = await Task { @MainActor [pid] in _ = MacApp.allAppsMap.removeValue(forKey: pid) }.result
+        _ = await Task.startUnstructured { @MainActor [pid] in _ = MacApp.allAppsMap.removeValue(forKey: pid) }.result
         for (_, job) in setFrameJobs {
             job.cancel()
         }
@@ -371,6 +384,13 @@ extension [UInt32: AxWindow] {
             return nil
         }
     }
+}
+
+private func getAxRect(window: AXUIElement, job: RunLoopJob) throws -> Rect? {
+    guard let topLeftCorner = window.get(Ax.topLeftCornerAttr) else { return nil }
+    try job.checkCancellation()
+    guard let size = window.get(Ax.sizeAttr) else { return nil }
+    return Rect(topLeftX: topLeftCorner.x, topLeftY: topLeftCorner.y, width: size.width, height: size.height)
 }
 
 private func setFrame(_ window: AXUIElement, _ topLeft: CGPoint?, _ size: CGSize?, _ job: RunLoopJob) throws {

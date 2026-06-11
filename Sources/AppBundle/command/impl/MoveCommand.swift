@@ -11,6 +11,13 @@ struct MoveCommand: Command {
         guard let currentWindow = target.windowOrNil else {
             return .fail(io.err(noWindowIsFocused))
         }
+        if try await shouldFailBecauseFullscreen(
+            window: currentWindow,
+            failIfFullscreen: args.failIfFullscreen,
+            failIfMacosNativeFullscreen: args.failIfMacosNativeFullscreen,
+        ) {
+            return .fail
+        }
         guard let parent = currentWindow.parent else { return .fail }
         switch parent.cases {
             case .tilingContainer(let parent):
@@ -164,4 +171,20 @@ extension TilingTreeNodeCases {
                     .findDeepMoveInTargetRecursive(orientation)
         }
     }
+}
+
+func shouldFailBecauseFullscreen(
+    window: Window,
+    failIfFullscreen: Bool,
+    failIfMacosNativeFullscreen: Bool,
+) async throws -> Bool {
+    if failIfFullscreen && window.isFullscreen {
+        return true
+    }
+    if failIfMacosNativeFullscreen {
+        if try await window.isMacosFullscreen {
+            return true
+        }
+    }
+    return false
 }

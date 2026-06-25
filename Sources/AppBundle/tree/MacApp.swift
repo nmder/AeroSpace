@@ -1,5 +1,6 @@
 import AppKit
 import Common
+import PrivateApi
 
 // Potential alternative implementation
 // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0392-custom-actor-executors.md
@@ -116,20 +117,20 @@ final class MacApp: AbstractApp {
     @MainActor func nativeFocus(_ windowId: UInt32) {
         if serverArgs.isReadOnly { return }
         MacApp.focusJob?.cancel()
-        // Performance optimization. If possible avoid doing AX requests
-        // (important for apps which are slow at responding even such basic AX requests. E.g. Godot)
-        // Beware of the macOS bug: https://github.com/nikitabobko/AeroSpace/issues/101
-        if (!NSScreen.screensHaveSeparateSpaces || monitors.count == 1) &&
-            (lastNativeFocusedWindowId == windowId || windowsCount == 1)
-        {
-            nsApp.activate(options: .activateIgnoringOtherApps)
-        } else {
-            MacApp.focusJob = withWindowAsync(windowId) { [nsApp] window, job in
-                // Raise firstly to make sure that by the time we activate the app, the window would be already on top
-                window.set(Ax.isMainAttr, true)
-                AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-                nsApp.activate(options: .activateIgnoringOtherApps)
+        MacApp.focusJob = withWindowAsync(windowId) { [nsApp] window, job in
+            // Ported from AltTab's robust focus sequence:
+            // 1. deminiaturize the window if needed;
+            // 2. _SLPSSetFrontProcessWithOptions fronts this process for this specific window;
+            // 3. a synthetic WindowServer click makes this window key without clicking content;
+            // 4. kAXRaiseAction raises it within the app's own window stack.
+            // Public NSRunningApplication.activate is only advisory on recent macOS versions.
+            if window.get(Ax.minimizedAttr) == true {
+                window.set(Ax.minimizedAttr, false)
             }
+            window.set(Ax.isMainAttr, true)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            ASAltTabFocusWindow(nsApp.processIdentifier, windowId)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
         }
     }
 

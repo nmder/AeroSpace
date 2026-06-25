@@ -2,6 +2,7 @@
 #define private_header_h
 
 #import <ApplicationServices/ApplicationServices.h>
+#import <Carbon/Carbon.h>
 
 // Potential alternative 1?
 // func allWindowsOnCurrentMacOsSpace() {
@@ -24,5 +25,10 @@
 // @discardableResult
 // func _AXUIElementGetWindow(_ axUiElement: AXUIElement, _ id: inout CGWindowID) -> AXError
 AXError _AXUIElementGetWindow(AXUIElementRef element, uint32_t *identifier);
+
+/// AltTab-style robust window focusing. It fronts the process for a specific
+/// window and posts a synthetic WindowServer click outside the window content
+/// to make that window key without clicking UI.
+void ASAltTabFocusWindow(pid_t pid, uint32_t windowId);
 
 #endif

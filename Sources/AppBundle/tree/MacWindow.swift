@@ -29,6 +29,21 @@ final class MacWindow: Window {
             .cancellable,
         )
 
+        if !isStartup,
+           config.crossWorkspaceFloatingWindows,
+           data.parent is FloatingWindowsContainer,
+           let rect,
+           rect.center.monitorApproximation.monitorAppKitNsScreenScreensId != focus.workspace.workspaceMonitor.monitorAppKitNsScreenScreensId
+        {
+            let sourceMonitorRect = rect.center.monitorApproximation.rect
+            let targetMonitorRect = focus.workspace.workspaceMonitor.rect
+            let newX = rect.topLeftX - sourceMonitorRect.topLeftX + targetMonitorRect.topLeftX
+            let newY = rect.topLeftY - sourceMonitorRect.topLeftY + targetMonitorRect.topLeftY
+            let dTopX = max(0, newX + rect.width - targetMonitorRect.maxX)
+            let dTopY = max(0, newY + rect.height - targetMonitorRect.maxY)
+            macApp.setAxFrame(windowId, CGPoint(x: newX - dTopX, y: newY - dTopY), nil)
+        }
+
         // atomic synchronous section
         if let existing = allWindowsMap[windowId] { return existing }
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)

@@ -50,7 +50,11 @@ final class MacWindow: Window {
         allWindowsMap[windowId] = window
 
         try await debugWindowsIfRecording(window, .cancellable)
-        if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
+        let shouldSkipClosedWindowsCacheRestore = config.crossWorkspaceFloatingWindows && window.isFloating && !isStartup
+        if shouldSkipClosedWindowsCacheRestore {
+            resetClosedWindowsCache()
+            await tryOnWindowDetected(window)
+        } else if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
             await tryOnWindowDetected(window)
         }
         return window
@@ -95,7 +99,9 @@ final class MacWindow: Window {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
-        if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
+        if !skipClosedWindowsCache && !(config.crossWorkspaceFloatingWindows && isFloating) {
+            cacheClosedWindowIfNeeded()
+        }
         let parent = unbindFromParent().parent
         let deadWindowWorkspace = parent.nodeWorkspace
         let focus = focus

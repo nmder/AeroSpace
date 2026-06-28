@@ -109,8 +109,17 @@ final class MacWindow: Window {
             deadWindowWorkspace == prevFocusedWorkspace && prevFocusedWorkspaceDate.distance(to: .now) < 1
         {
             switch parent.cases {
-                case .tilingContainer, .floatingWindowsContainer, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
+                case .tilingContainer, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
                     let deadWindowFocus = deadWindowWorkspace.toLiveFocus()
+                    _ = setFocus(to: deadWindowFocus)
+                    // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
+                    if focus.windowOrNil?.app.pid != app.pid {
+                        // Force focus to fix macOS annoyance with focused apps without windows.
+                        //   https://github.com/nikitabobko/AeroSpace/issues/65
+                        deadWindowFocus.windowOrNil?.nativeFocus()
+                    }
+                case .floatingWindowsContainer:
+                    let deadWindowFocus = deadWindowWorkspace.toLiveFocusAfterFloatingWindowClosed()
                     _ = setFocus(to: deadWindowFocus)
                     // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
                     if focus.windowOrNil?.app.pid != app.pid {
@@ -285,6 +294,51 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
         }
     }
     return lastExitCode
+}
+
+extension Workspace {
+    @MainActor
+    fileprivate func toLiveFocusAfterFloatingWindowClosed() -> LiveFocus {
+        let regularFocus = toLiveFocus()
+        guard let candidate = regularFocus.windowOrNil,
+              candidate.isFloating,
+              !candidate.isFloatingWindowVisibleAboveTilingWindows(on: self)
+        else { return regularFocus }
+
+        if let tiledWindow = rootTilingContainer.mostRecentWindowRecursive ?? rootTilingContainer.anyLeafWindowRecursive {
+            return LiveFocus(windowOrNil: tiledWindow, workspace: self)
+        } else {
+            return LiveFocus(windowOrNil: nil, workspace: self)
+        }
+    }
+}
+
+extension Window {
+    @MainActor
+    fileprivate func isFloatingWindowVisibleAboveTilingWindows(on workspace: Workspace) -> Bool {
+        let tiledWindowIds = workspace.rootTilingContainer.allLeafWindowsRecursive.map(\ .windowId).toSet()
+        if tiledWindowIds.isEmpty { return true }
+
+        let options = CGWindowListOption(arrayLiteral: .excludeDesktopElements, .optionOnScreenOnly)
+        guard let windowInfos = CGWindowListCopyWindowInfo(options, CGWindowID(0)) as? [CFDictionary] else { return false }
+
+        var ownZIndex: Int?
+        var topmostTiledZIndex: Int?
+        for (zIndex, elem) in windowInfos.enumerated() {
+            let dict = elem as NSDictionary
+            guard let rawWindowId = dict[kCGWindowNumber] else { continue }
+            let windowId = ((rawWindowId as! CFNumber) as NSNumber).uint32Value
+            if windowId == self.windowId {
+                ownZIndex = zIndex
+            }
+            if tiledWindowIds.contains(windowId) {
+                topmostTiledZIndex = min(topmostTiledZIndex ?? zIndex, zIndex)
+            }
+        }
+
+        guard let ownZIndex, let topmostTiledZIndex else { return false }
+        return ownZIndex < topmostTiledZIndex
+    }
 }
 
 extension WindowDetectedCallback {

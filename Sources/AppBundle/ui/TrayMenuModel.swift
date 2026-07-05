@@ -34,14 +34,16 @@ enum AxPermissionStatus: Equatable {
             return ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + activeWorkspaceName
         }
         .joined(separator: " │ ")
+    let workspacesWithConfiguredMonitor = (Array(config.workspaceToMonitorForceAssignment.keys) + Array(config.workspaceToMonitorAssignmentOnConnect.keys)).toSet()
     TrayMenuModel.shared.workspaces = Workspace.all.map {
         let apps = $0.allLeafWindowsRecursive.map { $0.app.name?.takeIf { !$0.isEmpty } }.filterNotNil().toSet()
         let dash = " - "
-        let suffix = switch true {
-            case !apps.isEmpty: dash + apps.sorted().joinTruncating(separator: ", ", length: 25)
-            case $0.isVisible: dash + $0.workspaceMonitor.name
-            default: ""
-        }
+        let showMonitorName = sortedMonitors.count > 1 && ($0.isVisible || !$0.isEffectivelyEmpty || workspacesWithConfiguredMonitor.contains($0.name))
+        let suffixParts = [
+            showMonitorName ? "[\($0.workspaceMonitor.name)]" : nil,
+            apps.isEmpty ? nil : apps.sorted().joinTruncating(separator: ", ", length: 25),
+        ].filterNotNil()
+        let suffix = suffixParts.isEmpty ? "" : dash + suffixParts.joined(separator: dash)
         let hasFullscreenWindows = $0.allLeafWindowsRecursive.contains { $0.isFullscreen }
         return WorkspaceViewModel(
             name: $0.name,

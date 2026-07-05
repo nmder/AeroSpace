@@ -80,6 +80,13 @@ gaps.outer.bottom =     0
 gaps.outer.top =        0
 gaps.outer.right =      0
 
+# One-shot workspace placement on monitor connect/rearrange. Unlike
+# workspace-to-monitor-force-assignment, this does not prevent later
+# move-workspace-to-monitor commands.
+# [workspace-to-monitor-assignment-on-connect]
+#     1 = { if = 'secondary', larger-than = 'main' }
+#     2 = 'secondary'
+
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 # 'main' binding mode must be always presented

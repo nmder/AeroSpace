@@ -59,6 +59,7 @@ struct Config: ConvenienceMutable {
 
     var gaps: Gaps = .zero
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
+    var workspaceToMonitorAssignmentOnConnect: [String: WorkspaceToMonitorAssignmentOnConnect] = [:]
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []
     var onModeChanged: Shell<any Command> = .empty
@@ -66,6 +67,12 @@ struct Config: ConvenienceMutable {
 
 struct FocusFollowsMouse: ConvenienceMutable {
     var enabled: Bool = false
+}
+
+struct WorkspaceToMonitorAssignmentOnConnect: Equatable, Sendable {
+    let target: [MonitorDescription]
+    let largerThan: [MonitorDescription]?
+    let smallerThan: [MonitorDescription]?
 }
 
 enum ConfigVersion: Int, Comparable, CaseIterable, Sendable, CustomStringConvertible {

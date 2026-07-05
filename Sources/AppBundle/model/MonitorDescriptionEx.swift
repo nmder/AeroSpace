@@ -1,5 +1,28 @@
 import Common
 
+extension WorkspaceToMonitorAssignmentOnConnect {
+    @MainActor func resolveMonitor(sortedMonitors: [Monitor]) -> Monitor? {
+        guard let candidate = target.resolveMonitor(sortedMonitors: sortedMonitors) else { return nil }
+        if let largerThan {
+            guard let compared = largerThan.resolveMonitor(sortedMonitors: sortedMonitors),
+                  candidate.rect.area > compared.rect.area
+            else { return nil }
+        }
+        if let smallerThan {
+            guard let compared = smallerThan.resolveMonitor(sortedMonitors: sortedMonitors),
+                  candidate.rect.area < compared.rect.area
+            else { return nil }
+        }
+        return candidate
+    }
+}
+
+extension [MonitorDescription] {
+    @MainActor func resolveMonitor(sortedMonitors: [Monitor]) -> Monitor? {
+        lazy.compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }.first
+    }
+}
+
 extension MonitorDescription {
     @MainActor func resolveMonitor(sortedMonitors: [Monitor]) -> Monitor? {
         switch self {

@@ -82,11 +82,12 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
 
     @MainActor
     static func garbageCollectUnusedWorkspaces() {
-        for name in config.persistentWorkspaces {
-            _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
+        let configuredWorkspaceNames = (Array(config.persistentWorkspaces) + Array(config.workspaceToMonitorAssignmentOnConnect.keys)).toSet()
+        for name in configuredWorkspaceNames {
+            _ = get(byName: name) // Make sure that all configured workspaces are "cached"
         }
         workspaceNameToWorkspace = workspaceNameToWorkspace.filter { (_, workspace: Workspace) in
-            config.persistentWorkspaces.contains(workspace.name) ||
+            configuredWorkspaceNames.contains(workspace.name) ||
                 !workspace.isEffectivelyEmpty ||
                 workspace.isVisible ||
                 workspace.name == focus.workspace.name
@@ -187,9 +188,27 @@ private func rearrangeWorkspacesOnMonitors() {
         {
             continue
         }
+    }
+
+    applyWorkspaceToMonitorAssignmentsOnConnect()
+
+    for newScreen in newScreens where screenPointToVisibleWorkspace[newScreen] == nil {
         let stubWorkspace = getStubWorkspace(forPoint: newScreen)
         check(newScreen.setActiveWorkspace(stubWorkspace),
               "getStubWorkspace generated incompatible stub workspace (\(stubWorkspace)) for the monitor (\(newScreen)")
+    }
+}
+
+@MainActor
+func applyWorkspaceToMonitorAssignmentsOnConnect() {
+    let sortedMonitors = sortedMonitors
+    for (workspaceName, assignment) in config.workspaceToMonitorAssignmentOnConnect {
+        let workspace = Workspace.get(byName: workspaceName)
+        guard let targetMonitor = assignment.resolveMonitor(sortedMonitors: sortedMonitors) else { continue }
+        workspace.assignedMonitorPoint = targetMonitor.rect.topLeftCorner
+        if workspace.isVisible {
+            _ = targetMonitor.setActiveWorkspace(workspace)
+        }
     }
 }
 

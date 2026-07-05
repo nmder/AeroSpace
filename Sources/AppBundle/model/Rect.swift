@@ -60,6 +60,7 @@ extension Rect {
     var maxX: CGFloat { topLeftX + width }
 
     var size: CGSize { CGSize(width: width, height: height) }
+    var area: CGFloat { width * height }
 
     func getDimension(_ orientation: Orientation) -> CGFloat { orientation == .h ? width : height }
 }

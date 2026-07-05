@@ -777,6 +777,24 @@ The first matching pattern will be used
 
 xref:commands.adoc#move-workspace-to-monitor[move-workspace-to-monitor] command has no effect for workspaces that have monitor assignment
 
+You can also assign workspaces only when monitors are connected/rearranged without
+forcing the assignment afterwards:
+
+[source,toml]
+----
+[workspace-to-monitor-assignment-on-connect]
+    1 = 'secondary'                                      # One-shot assignment to secondary monitor
+    2 = { if = 'secondary', larger-than = 'main' }        # Assign only if secondary is larger than main
+    3 = { if = 'dell', smaller-than = 'built-in' }        # Monitor-name patterns can be used in predicates
+----
+
+* `if`, `larger-than`, and `smaller-than` use the same monitor pattern syntax as
+  `workspace-to-monitor-force-assignment`
+* Size comparisons use monitor area (`width * height`)
+* Unlike `workspace-to-monitor-force-assignment`, this option only affects initial
+  placement when monitor topology changes. You can still move these workspaces later
+  with xref:commands.adoc#move-workspace-to-monitor[move-workspace-to-monitor]
+
 == Dialog heuristics
 
 * Apple provides accessibility API for apps to let others know which of their windows are dialogs

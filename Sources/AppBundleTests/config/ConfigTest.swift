@@ -322,6 +322,28 @@ final class ConfigTest: XCTestCase {
         assertEquals([:], defaultConfig.workspaceToMonitorForceAssignment)
     }
 
+    func testParseWorkspaceToMonitorAssignmentOnConnect() {
+        let result = parseConfig(
+            """
+            [workspace-to-monitor-assignment-on-connect]
+                workspace_name_1 = 'secondary'
+                workspace_name_2 = ['secondary', 'dell']
+                workspace_name_3 = { if = 'secondary', larger-than = 'main' }
+                workspace_name_4 = { if = 'dell', smaller-than = 'built-in' }
+            """,
+        )
+        assertEquals(
+            result.config.workspaceToMonitorAssignmentOnConnect,
+            [
+                "workspace_name_1": WorkspaceToMonitorAssignmentOnConnect(target: [.secondary], largerThan: nil, smallerThan: nil),
+                "workspace_name_2": WorkspaceToMonitorAssignmentOnConnect(target: [.secondary, .pattern("dell")!], largerThan: nil, smallerThan: nil),
+                "workspace_name_3": WorkspaceToMonitorAssignmentOnConnect(target: [.secondary], largerThan: [.main], smallerThan: nil),
+                "workspace_name_4": WorkspaceToMonitorAssignmentOnConnect(target: [.pattern("dell")!], largerThan: nil, smallerThan: [.pattern("built-in")!]),
+            ],
+        )
+        assertEquals([], result.strErrors)
+    }
+
     func testParseOnWindowDetected() {
         let result = parseConfig(
             """

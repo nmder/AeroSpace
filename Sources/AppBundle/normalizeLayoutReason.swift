@@ -46,15 +46,17 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
                         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: WEIGHT_DOESNT_MATTER, index: INDEX_BIND_LAST)
                     }
                 } else if config.crossWorkspaceFloatingWindows && window.isFloating && !workspace.isVisible  {
-                    guard let size = try await window.getAxSize(.cancellable),
-                          let topLeft = try await window.getAxRect(.cancellable)?.topLeftCorner else { continue }
+                    guard let windowRect = try await window.getAxRect(.cancellable) else { continue }
                     let sourceMonitor = workspace.workspaceMonitor
                     let targetMonitor = focus.workspace.workspaceMonitor
-                    let newX = topLeft.x - sourceMonitor.rect.topLeftX + targetMonitor.rect.topLeftX
-                    let newY = topLeft.y - sourceMonitor.rect.topLeftY + targetMonitor.rect.topLeftY
-                    let dTopX = max(0, newX + size.width - targetMonitor.rect.maxX)
-                    let dTopY = max(0, newY + size.height - targetMonitor.rect.maxY)
-                    window.setAxFrame(CGPoint(x: newX - dTopX, y: newY - dTopY), nil)
+                    window.setAxFrame(
+                        floatingWindowTargetTopLeft(
+                            windowRect: windowRect,
+                            sourceMonitorRect: sourceMonitor.visibleRect,
+                            targetMonitorRect: targetMonitor.visibleRect,
+                        ),
+                        nil,
+                    )
                     window.bindAsFloatingWindow(to: focus.workspace)
                 }
             case .macos(let prevParentKind):

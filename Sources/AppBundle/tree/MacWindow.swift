@@ -32,16 +32,21 @@ final class MacWindow: Window {
         if !isStartup,
            config.crossWorkspaceFloatingWindows,
            data.parent is FloatingWindowsContainer,
-           let rect,
-           rect.center.monitorApproximation.monitorAppKitNsScreenScreensId != focus.workspace.workspaceMonitor.monitorAppKitNsScreenScreensId
+           let rect
         {
-            let sourceMonitorRect = rect.center.monitorApproximation.rect
-            let targetMonitorRect = focus.workspace.workspaceMonitor.rect
-            let newX = rect.topLeftX - sourceMonitorRect.topLeftX + targetMonitorRect.topLeftX
-            let newY = rect.topLeftY - sourceMonitorRect.topLeftY + targetMonitorRect.topLeftY
-            let dTopX = max(0, newX + rect.width - targetMonitorRect.maxX)
-            let dTopY = max(0, newY + rect.height - targetMonitorRect.maxY)
-            macApp.setAxFrame(windowId, CGPoint(x: newX - dTopX, y: newY - dTopY), nil)
+            let sourceMonitor = rect.center.monitorApproximation
+            let targetMonitor = focus.workspace.workspaceMonitor
+            if sourceMonitor.monitorAppKitNsScreenScreensId != targetMonitor.monitorAppKitNsScreenScreensId {
+                macApp.setAxFrame(
+                    windowId,
+                    floatingWindowTargetTopLeft(
+                        windowRect: rect,
+                        sourceMonitorRect: sourceMonitor.visibleRect,
+                        targetMonitorRect: targetMonitor.visibleRect,
+                    ),
+                    nil,
+                )
+            }
         }
 
         // atomic synchronous section

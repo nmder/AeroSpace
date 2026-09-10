@@ -1,5 +1,4 @@
 import Common
-import AppKit
 
 struct MoveNodeToWorkspaceCommand: Command {
     let args: MoveNodeToWorkspaceCmdArgs
@@ -43,21 +42,15 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
         ? targetWorkspace.floatingWindowsContainer
         : targetWorkspace.rootTilingContainer
     if window.isFloating {
-        guard let size = try? await window.getAxSize(.cancellable),
-            let topLeft = try? await window.getAxRect(.cancellable)?.topLeftCorner
-        else { return .succ }
-        let dTopX = max(0,
-            topLeft.x - focus.workspace.workspaceMonitor.rect.topLeftX
-            + size.width - targetWorkspace.workspaceMonitor.width)
-        let dTopY = max(0,
-            topLeft.y - focus.workspace.workspaceMonitor.rect.topLeftY
-            + size.height - targetWorkspace.workspaceMonitor.height)
-        window.setAxFrame(CGPoint(
-            x: topLeft.x - focus.workspace.workspaceMonitor.rect.topLeftX
-                - dTopX + targetWorkspace.workspaceMonitor.rect.topLeftX,
-            y: topLeft.y - focus.workspace.workspaceMonitor.rect.topLeftY
-                - dTopY + targetWorkspace.workspaceMonitor.rect.topLeftY),
-            nil)
+        guard let windowRect = try? await window.getAxRect(.cancellable) else { return .succ }
+        window.setAxFrame(
+            floatingWindowTargetTopLeft(
+                windowRect: windowRect,
+                sourceMonitorRect: windowRect.center.monitorApproximation.visibleRect,
+                targetMonitorRect: targetWorkspace.workspaceMonitor.visibleRect,
+            ),
+            nil,
+        )
     }
     window.bind(to: targetContainer, adaptiveWeight: WEIGHT_AUTO, index: index)
     return .from(bool: focusFollowsWindow ? window.focusWindow() : true)

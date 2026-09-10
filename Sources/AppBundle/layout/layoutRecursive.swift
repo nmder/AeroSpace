@@ -74,20 +74,14 @@ extension Window {
         let windowRect = try await getAxRect(.cancellable) // Probably not idempotent
         let currentMonitor = windowRect?.center.monitorApproximation
         if let currentMonitor, let windowRect, workspace != currentMonitor.activeWorkspace {
-            let windowTopLeftCorner = windowRect.topLeftCorner
-            let xProportion = (windowTopLeftCorner.x - currentMonitor.visibleRect.topLeftX) / currentMonitor.visibleRect.width
-            let yProportion = (windowTopLeftCorner.y - currentMonitor.visibleRect.topLeftY) / currentMonitor.visibleRect.height
-
-            let workspaceRect = workspace.workspaceMonitor.visibleRect
-            var newX = workspaceRect.topLeftX + xProportion * workspaceRect.width
-            var newY = workspaceRect.topLeftY + yProportion * workspaceRect.height
-
-            let windowWidth = windowRect.width
-            let windowHeight = windowRect.height
-            newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
-            newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
-
-            setAxFrame(CGPoint(x: newX, y: newY), nil)
+            setAxFrame(
+                floatingWindowTargetTopLeft(
+                    windowRect: windowRect,
+                    sourceMonitorRect: currentMonitor.visibleRect,
+                    targetMonitorRect: workspace.workspaceMonitor.visibleRect,
+                ),
+                nil,
+            )
         }
         if isFullscreen {
             layoutFullscreen(context)

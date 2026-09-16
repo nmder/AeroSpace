@@ -28,14 +28,16 @@ static void ASAltTabMakeKeyWindow(ProcessSerialNumber *psn, uint32_t windowId) {
         recordLength = 0xf8,
         eventTypeOffset = 0x08,
         leftMouseDown = 0x01,
-        leftMouseUp = 0x02,
         windowLocationOffset = 0x20,
         unknownFlagOffset = 0x3a,
         unknownFlagValue = 0x10,
         windowIdOffset = 0x3c,
     };
 
-    CGPoint point = CGPointMake(-1, -1);
+    // A down event alone is enough to make the window key. Omitting the up event prevents a
+    // synthetic click from activating window content. Keep the point far beyond the bottom-right;
+    // on macOS 27, points near the frame (including -1, -1) can hit the resize grab region.
+    CGPoint point = CGPointMake(300000, 300000);
     uint8_t bytes[bufferSize] = {0};
     bytes[lengthOffset] = recordLength;
     bytes[unknownFlagOffset] = unknownFlagValue;
@@ -48,8 +50,6 @@ static void ASAltTabMakeKeyWindow(ProcessSerialNumber *psn, uint32_t windowId) {
     }
 
     bytes[eventTypeOffset] = leftMouseDown;
-    postEvent(psn, bytes);
-    bytes[eventTypeOffset] = leftMouseUp;
     postEvent(psn, bytes);
 }
 
@@ -64,15 +64,11 @@ void ASAltTabFocusWindow(pid_t pid, uint32_t windowId) {
         return;
     }
 
-    // Make the requested window key before fronting the process. In multi-monitor setups,
-    // some apps (notably Safari) otherwise let WindowServer promote the app's previously-key
-    // window on another monitor during the process-front step.
-    ASAltTabMakeKeyWindow(&psn, windowId);
-
     // 0x200 is AltTab/yabai's user-generated front-process mode: front this
     // process for the specific window without bringing all app windows forward.
     setFrontProcess(&psn, windowId, 0x200);
 
-    // Repeat after fronting, matching AltTab's intended final key-window state.
+    // Front first, then make the requested window key. A pre-front key event is not sufficient on
+    // macOS 27; the front-process operation can replace the app's key window.
     ASAltTabMakeKeyWindow(&psn, windowId);
 }

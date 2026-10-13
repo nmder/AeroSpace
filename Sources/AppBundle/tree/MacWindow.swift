@@ -117,19 +117,13 @@ final class MacWindow: Window {
                 case .tilingContainer, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
                     let deadWindowFocus = deadWindowWorkspace.toLiveFocus()
                     _ = setFocus(to: deadWindowFocus)
-                    // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
-                    if focus.windowOrNil?.app.pid != app.pid {
-                        // Force focus to fix macOS annoyance with focused apps without windows.
-                        //   https://github.com/nikitabobko/AeroSpace/issues/65
+                    if shouldForceNativeFocusAfterWindowClosed(focus, deadWindowWorkspace, app.pid) {
                         deadWindowFocus.windowOrNil?.nativeFocus()
                     }
                 case .floatingWindowsContainer:
                     let deadWindowFocus = deadWindowWorkspace.toLiveFocusAfterFloatingWindowClosed()
                     _ = setFocus(to: deadWindowFocus)
-                    // Guard against "Apple Reminders popup" bug: https://github.com/nikitabobko/AeroSpace/issues/201
-                    if focus.windowOrNil?.app.pid != app.pid {
-                        // Force focus to fix macOS annoyance with focused apps without windows.
-                        //   https://github.com/nikitabobko/AeroSpace/issues/65
+                    if shouldForceNativeFocusAfterWindowClosed(focus, deadWindowWorkspace, app.pid) {
                         deadWindowFocus.windowOrNil?.nativeFocus()
                     }
                 case .macosPopupWindowsContainer, // Don't switch back on popup destruction
@@ -314,6 +308,13 @@ func onWindowDetected(_ env: CmdEnv, _ io: CmdIo, _ window: Window) async -> Int
         }
     }
     return lastExitCode
+}
+
+@MainActor
+func shouldForceNativeFocusAfterWindowClosed(_ currentFocus: LiveFocus, _ deadWindowWorkspace: Workspace, _ deadWindowAppPid: pid_t) -> Bool {
+    // Keep the same-workspace/same-app guard for transient popups such as Apple Reminders' date picker (#201).
+    // If macOS moved the app to another workspace after closing its window, force focus back to the closing workspace.
+    currentFocus.workspace != deadWindowWorkspace || currentFocus.windowOrNil?.app.pid != deadWindowAppPid
 }
 
 extension Workspace {

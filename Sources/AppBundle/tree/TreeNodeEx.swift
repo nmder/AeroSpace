@@ -47,7 +47,13 @@ extension TreeNode {
     }
 
     var mostRecentWindowRecursive: Window? {
-        self as? Window ?? mostRecentChild?.mostRecentWindowRecursive
+        if let window = self as? Window { return window }
+        for child in mruChildren {
+            if let window = child.mostRecentWindowRecursive {
+                return window
+            }
+        }
+        return nil
     }
 
     var anyLeafWindowRecursive: Window? {

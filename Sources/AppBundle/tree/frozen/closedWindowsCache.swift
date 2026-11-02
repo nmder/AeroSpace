@@ -50,8 +50,12 @@ struct FrozenWorkspace: Sendable {
     )
 }
 
+@MainActor func isWindowInClosedWindowsCache(_ windowId: UInt32) -> Bool {
+    closedWindowsCache.windowIds.contains(windowId)
+}
+
 @MainActor func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws -> Bool {
-    if !closedWindowsCache.windowIds.contains(newlyDetectedWindow.windowId) {
+    if !isWindowInClosedWindowsCache(newlyDetectedWindow.windowId) {
         return false
     }
     let monitors = monitorInfos

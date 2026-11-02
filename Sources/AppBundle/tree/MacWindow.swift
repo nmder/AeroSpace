@@ -55,7 +55,10 @@ final class MacWindow: Window {
         allWindowsMap[windowId] = window
 
         try await debugWindowsIfRecording(window, .cancellable)
-        let shouldSkipClosedWindowsCacheRestore = config.crossWorkspaceFloatingWindows && window.isFloating && !isStartup
+        // Windows rediscovered after sleep or a temporary AX outage must restore their cached workspace,
+        // even when floating windows normally follow the current workspace.
+        let shouldSkipClosedWindowsCacheRestore = config.crossWorkspaceFloatingWindows && window.isFloating && !isStartup &&
+            !isWindowInClosedWindowsCache(window.windowId)
         if shouldSkipClosedWindowsCacheRestore {
             resetClosedWindowsCache()
             await runOnWindowDetected(ifConventional: window)

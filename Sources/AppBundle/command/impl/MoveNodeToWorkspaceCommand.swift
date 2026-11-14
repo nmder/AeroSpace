@@ -41,13 +41,12 @@ func moveWindowToWorkspace(_ window: Window, _ targetWorkspace: Workspace, _ io:
     let targetContainer: NonLeafTreeNodeObject = window.isFloating
         ? targetWorkspace.floatingWindowsContainer
         : targetWorkspace.rootTilingContainer
-    if window.isFloating {
-        guard let windowRect = try? await window.getAxRect(.cancellable) else { return .succ }
+    if window.isFloating, let windowRect = try? await window.getAxRect(.cancellable) {
         window.setAxFrame(
             floatingWindowTargetTopLeft(
                 windowRect: windowRect,
                 sourceMonitorRect: windowRect.center.monitorApproximation.visibleRect,
-                targetMonitorRect: targetWorkspace.workspaceMonitor.visibleRect,
+                targetMonitorRect: targetWorkspace.workspaceMonitorInfo.visibleRect,
             ),
             nil,
         )

@@ -1,6 +1,6 @@
 import AppKit
 
-func floatingWindowTargetTopLeft(windowRect: Rect, sourceMonitorRect: Rect, targetMonitorRect: Rect) -> CGPoint {
+func floatingWindowTargetTopLeft(windowRect: Rect, sourceMonitorRect: Rect, targetMonitorRect: Rect) -> Point {
     let xProportion = (windowRect.topLeftX - sourceMonitorRect.topLeftX) / sourceMonitorRect.width
     let yProportion = (windowRect.topLeftY - sourceMonitorRect.topLeftY) / sourceMonitorRect.height
 
@@ -9,7 +9,7 @@ func floatingWindowTargetTopLeft(windowRect: Rect, sourceMonitorRect: Rect, targ
     let maxX = max(targetMonitorRect.minX, targetMonitorRect.maxX - windowRect.width)
     let maxY = max(targetMonitorRect.minY, targetMonitorRect.maxY - windowRect.height)
 
-    return CGPoint(
+    return Point(
         x: proportionalX.coerce(in: targetMonitorRect.minX ... maxX),
         y: proportionalY.coerce(in: targetMonitorRect.minY ... maxY),
     )

@@ -1,19 +1,17 @@
 @testable import AppBundle
-import XCTest
+import Testing
 
 @MainActor
-final class ClosedWindowsCacheTest: XCTestCase {
-    override func setUp() async throws {
+@Suite(.serializedGlobally)
+struct ClosedWindowsCacheTest {
+    init() {
         setUpWorkspacesForTests()
         resetClosedWindowsCache()
     }
 
-    override func tearDown() async throws {
-        resetClosedWindowsCache()
-    }
-
-    func testCacheDistinguishesRediscoveredFloatingWindowFromNewWindow() {
-        let workspace = focus.workspace
+    @Test func testCacheDistinguishesRediscoveredFloatingWindowFromNewWindow() {
+        defer { resetClosedWindowsCache() }
+        let workspace = globalFocus.workspace
         let tiledWindow = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let floatingWindow = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
         cacheClosedWindowIfNeeded()
@@ -21,15 +19,15 @@ final class ClosedWindowsCacheTest: XCTestCase {
         // Temporary AX unavailability detaches windows, but their IDs must remain cached.
         tiledWindow.unbindFromParent()
         floatingWindow.unbindFromParent()
-        XCTAssertTrue(isWindowInClosedWindowsCache(tiledWindow.windowId))
-        XCTAssertTrue(isWindowInClosedWindowsCache(floatingWindow.windowId))
+        #expect(isWindowInClosedWindowsCache(tiledWindow.windowId))
+        #expect(isWindowInClosedWindowsCache(floatingWindow.windowId))
 
         let newFloatingWindow = TestWindow.new(id: 3, parent: workspace.floatingWindowsContainer)
-        XCTAssertFalse(isWindowInClosedWindowsCache(newFloatingWindow.windowId))
-        XCTAssertTrue(isWindowInClosedWindowsCache(tiledWindow.windowId))
+        #expect(!isWindowInClosedWindowsCache(newFloatingWindow.windowId))
+        #expect(isWindowInClosedWindowsCache(tiledWindow.windowId))
 
         resetClosedWindowsCache()
-        XCTAssertFalse(isWindowInClosedWindowsCache(tiledWindow.windowId))
-        XCTAssertFalse(isWindowInClosedWindowsCache(floatingWindow.windowId))
+        #expect(!isWindowInClosedWindowsCache(tiledWindow.windowId))
+        #expect(!isWindowInClosedWindowsCache(floatingWindow.windowId))
     }
 }

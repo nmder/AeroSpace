@@ -24,14 +24,15 @@ enum AxPermissionStatus: Equatable {
 }
 
 @MainActor func updateTrayText() {
-    let sortedMonitors = sortedMonitorInfos
-    let focus = focus
+    let sortedMonitors = globalSortedMonitorInfos
+    let focus = globalFocus
     TrayMenuModel.shared.trayText = (activeMode?.takeIf { $0 != mainModeId }?.first.map { "(\($0.uppercased())) " } ?? "") +
         sortedMonitors
+        .lazy
         .map {
-            let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
-            let activeWorkspaceName = hasFullscreenWindows ? "[\($0.activeWorkspace.name)]" : $0.activeWorkspace.name
-            return ($0.activeWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + activeWorkspaceName
+            let hasFullscreenWindows = $0.visibleWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
+            let visibleWorkspaceName = hasFullscreenWindows ? "[\($0.visibleWorkspace.name)]" : $0.visibleWorkspace.name
+            return ($0.visibleWorkspace == focus.workspace && sortedMonitors.count > 1 ? "*" : "") + visibleWorkspaceName
         }
         .joined(separator: " │ ")
     let workspacesWithConfiguredMonitor = (Array(config.workspaceToMonitorForceAssignment.keys) + Array(config.workspaceToMonitorAssignmentOnConnect.keys)).toSet()
@@ -40,7 +41,7 @@ enum AxPermissionStatus: Equatable {
         let dash = " - "
         let showMonitorName = sortedMonitors.count > 1 && ($0.isVisible || !$0.isEffectivelyEmpty || workspacesWithConfiguredMonitor.contains($0.name))
         let suffixParts = [
-            showMonitorName ? "[\($0.workspaceMonitor.name)]" : nil,
+            showMonitorName ? "[\($0.workspaceMonitorInfo.name)]" : nil,
             apps.isEmpty ? nil : apps.sorted().joinTruncating(separator: ", ", length: 25),
         ].filterNotNil()
         let suffix = suffixParts.isEmpty ? "" : dash + suffixParts.joined(separator: dash)
@@ -55,11 +56,11 @@ enum AxPermissionStatus: Equatable {
         )
     }
     var items = sortedMonitors.map {
-        let hasFullscreenWindows = $0.activeWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
+        let hasFullscreenWindows = $0.visibleWorkspace.allLeafWindowsRecursive.contains { $0.isFullscreen }
         return TrayItem(
             type: .workspace,
-            name: $0.activeWorkspace.name,
-            isActive: $0.activeWorkspace == focus.workspace,
+            name: $0.visibleWorkspace.name,
+            isActive: $0.visibleWorkspace == focus.workspace,
             hasFullscreenWindows: hasFullscreenWindows,
         )
     }

@@ -1,35 +1,36 @@
 @testable import AppBundle
-import XCTest
+import Testing
 
-final class NSRunningApplicationExTest: XCTestCase {
-    func testKeepsValidReportedPidWithoutConsultingCandidates() {
+@Suite
+struct NSRunningApplicationExTest {
+    @Test func testKeepsValidReportedPidWithoutConsultingCandidates() {
         var matcherWasCalled = false
         let result = resolveProcessIdentifier(reportedPid: 42, candidatePids: [100]) { _ in
             matcherWasCalled = true
             return true
         }
 
-        assertEquals(result, 42)
-        assertFalse(matcherWasCalled)
+        #expect(result == 42)
+        #expect(!matcherWasCalled)
     }
 
-    func testResolvesMinusOneToUniqueMatchingWindowOwnerPid() {
+    @Test func testResolvesMinusOneToUniqueMatchingWindowOwnerPid() {
         let result = resolveProcessIdentifier(reportedPid: -1, candidatePids: [100, 200, 200]) { $0 == 200 }
-        assertEquals(result, 200)
+        #expect(result == 200)
     }
 
-    func testIgnoresInvalidCandidatePids() {
+    @Test func testIgnoresInvalidCandidatePids() {
         let result = resolveProcessIdentifier(reportedPid: -1, candidatePids: [-1, 0, 200]) { _ in true }
-        assertEquals(result, 200)
+        #expect(result == 200)
     }
 
-    func testReturnsNilWithoutMatchingWindowOwnerPid() {
+    @Test func testReturnsNilWithoutMatchingWindowOwnerPid() {
         let result = resolveProcessIdentifier(reportedPid: -1, candidatePids: [100, 200]) { _ in false }
-        assertNil(result)
+        #expect(result == nil)
     }
 
-    func testReturnsNilForAmbiguousMatchingWindowOwnerPids() {
+    @Test func testReturnsNilForAmbiguousMatchingWindowOwnerPids() {
         let result = resolveProcessIdentifier(reportedPid: -1, candidatePids: [100, 200]) { _ in true }
-        assertNil(result)
+        #expect(result == nil)
     }
 }

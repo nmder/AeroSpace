@@ -19,12 +19,12 @@ extension WorkspaceToMonitorAssignmentOnConnect {
 
 extension [MonitorDescription] {
     @MainActor func resolveMonitor(sortedMonitors: [MonitorInfo]) -> MonitorInfo? {
-        lazy.compactMap { $0.resolveMonitor(sortedMonitors: sortedMonitors) }.first
+        lazy.compactMap { $0.resolveMonitorInfo(sortedMonitors: sortedMonitors) }.first
     }
 }
 
 extension MonitorDescription {
-    @MainActor func resolveMonitor(sortedMonitors: [MonitorInfo]) -> MonitorInfo? {
+    @MainActor func resolveMonitorInfo(sortedMonitors: [MonitorInfo]) -> MonitorInfo? {
         switch self {
             case .sequenceNumber(let number): sortedMonitors.getOrNil(atIndex: number - 1)
             case .main: mainMonitorInfo

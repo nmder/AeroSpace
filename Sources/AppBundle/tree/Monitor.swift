@@ -84,6 +84,10 @@ final class Monitor: TreeNode, NonLeafTreeNodeObject {
         pointToMonitor[monitor.info.rect.topLeftCorner] = monitor
         i += 1
     }
+
+    // Reapply one-shot assignments whenever displays reconnect or are rearranged.
+    // Sleep/wake can rebuild NSScreen objects even when the monitor count stays unchanged.
+    applyWorkspaceToMonitorAssignmentsOnConnect()
 }
 
 extension MonitorInfo {
@@ -113,7 +117,21 @@ extension MonitorInfo {
 }
 
 @MainActor func gcMonitors() {
-    if pointToMonitor.count != globalUnsortedMonitorInfos.count {
+    func rectEquals(_ lhs: Rect, _ rhs: Rect) -> Bool {
+        lhs.topLeftX == rhs.topLeftX && lhs.topLeftY == rhs.topLeftY &&
+            lhs.width == rhs.width && lhs.height == rhs.height
+    }
+
+    let newMonitorInfos = globalUnsortedMonitorInfos
+    let topologyChanged = pointToMonitor.count != newMonitorInfos.count || newMonitorInfos.contains { newInfo in
+        guard let oldInfo = pointToMonitor[newInfo.rect.topLeftCorner]?.info else { return true }
+        return oldInfo.monitorAppKitNsScreenScreensId != newInfo.monitorAppKitNsScreenScreensId ||
+            oldInfo.name != newInfo.name ||
+            !rectEquals(oldInfo.rect, newInfo.rect) ||
+            !rectEquals(oldInfo.visibleRect, newInfo.visibleRect) ||
+            oldInfo.isMain != newInfo.isMain
+    }
+    if topologyChanged {
         rearrangeMonitors()
     }
 }

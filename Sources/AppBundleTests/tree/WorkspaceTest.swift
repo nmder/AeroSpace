@@ -30,4 +30,17 @@ struct WorkspaceTest {
         updateTrayText()
         #expect(mainMonitorInfo.visibleWorkspace === globalFocus.workspace)
     }
+
+    @Test func testAssignmentOnConnectRebindsWorkspaceAfterMonitorReconnect() {
+        config.workspaceToMonitorAssignmentOnConnect = [
+            "a": WorkspaceToMonitorAssignmentOnConnect(target: [.main], largerThan: nil, smallerThan: nil),
+        ]
+        let workspace = Workspace.get(byName: "a")
+        workspace.unbindFromParent()
+
+        applyWorkspaceToMonitorAssignmentsOnConnect()
+
+        let targetContainer = mainMonitorInfo.toMonitorOrRearrangeMonitors().getWorkspacesContainerOrCreate()
+        #expect(workspace.parent === targetContainer)
+    }
 }

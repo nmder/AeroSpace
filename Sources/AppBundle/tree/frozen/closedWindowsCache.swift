@@ -37,10 +37,10 @@ struct FrozenWorkspace: Sendable {
     }
 }
 
-@MainActor func cacheClosedWindowIfNeeded() {
+@MainActor func cacheClosedWindowIfNeeded(forceRefresh: Bool = false) {
     let allWs = Workspace.all
     let allWindowIds = allWs.flatMap { collectAllWindowIdsRecursive($0) }.toSet()
-    if allWindowIds.isSubset(of: closedWindowsCache.windowIds) {
+    if !forceRefresh && allWindowIds.isSubset(of: closedWindowsCache.windowIds) {
         return // already cached
     }
     closedWindowsCache = FrozenWorld(

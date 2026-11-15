@@ -122,11 +122,16 @@ private func refresh() async throws {
         .refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     let aliveWindowIds = mapping.values.flatMap(\.keys).toSet()
 
-    for window in MacWindow.allWindows {
-        if !aliveWindowIds.contains(window.windowId) {
-            window.lifeStatus = .dead
-            window.garbageCollect(skipClosedWindowsCache: false)
-        }
+    let disappearedWindows = MacWindow.allWindows.filter { !aliveWindowIds.contains($0.windowId) }
+    if !disappearedWindows.isEmpty {
+        // Take one atomic snapshot before unbinding any window. During sleep/lock, AX can report
+        // all windows as gone in arbitrary order; per-window caching can otherwise miss the first
+        // floating window and make every rediscovered window fall into the focused workspace.
+        cacheClosedWindowIfNeeded(forceRefresh: true)
+    }
+    for window in disappearedWindows {
+        window.lifeStatus = .dead
+        window.garbageCollect(skipClosedWindowsCache: true)
     }
     for (app, windows) in mapping {
         for (windowId, lifeStatus) in windows {

@@ -124,10 +124,9 @@ private func refresh() async throws {
 
     let disappearedWindows = MacWindow.allWindows.filter { !aliveWindowIds.contains($0.windowId) }
     if !disappearedWindows.isEmpty {
-        // Take one atomic snapshot before unbinding any window. During sleep/lock, AX can report
-        // all windows as gone in arbitrary order; per-window caching can otherwise miss the first
-        // floating window and make every rediscovered window fall into the focused workspace.
-        cacheClosedWindowIfNeeded(forceRefresh: true)
+        // Snapshot before detaching any windows, but retain earlier batches that AX still
+        // hasn't rediscovered. Sleep/lock disappearance can span multiple refreshes.
+        cacheClosedWindowIfNeeded()
     }
     for window in disappearedWindows {
         window.lifeStatus = .dead

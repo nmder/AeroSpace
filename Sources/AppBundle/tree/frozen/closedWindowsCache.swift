@@ -9,6 +9,15 @@ import Common
 /// so that once the screen is unlocked, AeroSpace could restore windows to where they were
 @MainActor private var closedWindowsCache = FrozenWorld(monitors: [], windowIds: [])
 
+// Retain membership independently of the latest tree snapshot: AX can lose windows in batches,
+// and genuinely new windows can appear before every previously missing window returns.
+private struct CachedWindowBinding {
+    let workspaceName: String
+    let floating: Bool
+}
+
+@MainActor private var cachedWindowBindings: [OpaqueWindowId: CachedWindowBinding] = [:]
+
 struct FrozenMonitor: Sendable {
     let visibleWorkspace: String
     let topLeftCorner: Point
@@ -37,11 +46,19 @@ struct FrozenWorkspace: Sendable {
     }
 }
 
-@MainActor func cacheClosedWindowIfNeeded(forceRefresh: Bool = false) {
+@MainActor func cacheClosedWindowIfNeeded() {
     let allWs = Workspace.all
     let allWindowIds = allWs.flatMap { collectAllWindowIdsRecursive($0) }.toSet()
-    if !forceRefresh && allWindowIds.isSubset(of: closedWindowsCache.windowIds) {
-        return // already cached
+    if allWindowIds.isSubset(of: closedWindowsCache.windowIds) {
+        return // already cached; don't replace the snapshot with a partially detached tree
+    }
+    for workspace in allWs {
+        for window in workspace.allLeafWindowsRecursive {
+            cachedWindowBindings[window.windowId] = CachedWindowBinding(
+                workspaceName: workspace.name,
+                floating: window.isFloating || window.layoutReason == .macos(prevParentKind: .floatingWindowsContainer),
+            )
+        }
     }
     closedWindowsCache = FrozenWorld(
         monitors: Monitor.all.map(FrozenMonitor.init),
@@ -50,7 +67,7 @@ struct FrozenWorkspace: Sendable {
 }
 
 @MainActor func isWindowInClosedWindowsCache(_ windowId: OpaqueWindowId) -> Bool {
-    closedWindowsCache.windowIds.contains(windowId)
+    cachedWindowBindings[windowId] != nil
 }
 
 @MainActor func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws -> Bool {
@@ -59,6 +76,8 @@ struct FrozenWorkspace: Sendable {
     }
     let monitors = globalUnsortedMonitorInfos
     let topLeftCornerToMonitorInfo = monitors.grouped { $0.rect.topLeftCorner }
+    // Keep references while rebuilding trees, including temporarily detached roots.
+    let windowsById = Dictionary(uniqueKeysWithValues: Workspace.all.flatMap(\.allLeafWindowsRecursive).map { ($0.windowId, $0) })
 
     for monitor in closedWindowsCache.monitors {
         for frozenWorkspace in monitor.workspaces {
@@ -67,15 +86,15 @@ struct FrozenWorkspace: Sendable {
                 .singleOrNil()?
                 .bindWorkspace(workspace)
             for frozenWindow in frozenWorkspace.floatingWindows {
-                MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
+                windowsById[frozenWindow.id]?.bindAsFloatingWindow(to: workspace)
             }
             for frozenWindow in frozenWorkspace.macosUnconventionalWindows { // Will get fixed by normalizations
-                MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
+                windowsById[frozenWindow.id]?.bindAsFloatingWindow(to: workspace)
             }
             let prevRoot = workspace.rootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
             let potentialOrphans = prevRoot.allLeafWindowsRecursive
             prevRoot.unbindFromParent()
-            restoreTreeRecursive(frozenContainer: frozenWorkspace.rootTilingNode, parent: workspace, index: INDEX_BIND_LAST)
+            restoreTreeRecursive(frozenContainer: frozenWorkspace.rootTilingNode, parent: workspace, index: INDEX_BIND_LAST, windowsById: windowsById)
             for window in (potentialOrphans - workspace.rootTilingContainer.allLeafWindowsRecursive) {
                 try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
             }
@@ -85,12 +104,31 @@ struct FrozenWorkspace: Sendable {
             .singleOrNil()?
             .setVisibleWorkspace(Workspace.get(byName: monitor.visibleWorkspace))
     }
+
+    // The latest tree may omit windows lost in an earlier AX refresh. Restore their membership
+    // as well, and correct any temporary binding to the focused workspace during rediscovery.
+    for (id, binding) in cachedWindowBindings {
+        guard let window = windowsById[id] else { continue }
+        let workspace = Workspace.get(byName: binding.workspaceName)
+        if window.nodeWorkspace != workspace {
+            if binding.floating {
+                window.bindAsFloatingWindow(to: workspace)
+            } else {
+                window.bind(to: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+            }
+        }
+    }
     return true
 }
 
 @discardableResult
 @MainActor
-private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonLeafTreeNodeObject, index: Int) -> Bool {
+private func restoreTreeRecursive(
+    frozenContainer: FrozenContainer,
+    parent: NonLeafTreeNodeObject,
+    index: Int,
+    windowsById: [OpaqueWindowId: Window],
+) -> Bool {
     let container = TilingContainer(
         parent: parent,
         adaptiveWeight: frozenContainer.weight,
@@ -99,15 +137,15 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
         index: index,
     )
 
-    for (index, child) in frozenContainer.children.enumerated() {
+    for child in frozenContainer.children {
         switch child {
             case .window(let w):
-                // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
-                guard let window = MacWindow.get(byId: w.id) else { return false }
-                window.bind(to: container, adaptiveWeight: w.weight, index: index)
+                // Missing siblings may return later. Restore all available windows in snapshot
+                // order instead of leaving the remainder on the focused workspace.
+                guard let window = windowsById[w.id] else { continue }
+                window.bind(to: container, adaptiveWeight: w.weight, index: INDEX_BIND_LAST)
             case .container(let c):
-                // There is no reason to continue
-                if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }
+                restoreTreeRecursive(frozenContainer: c, parent: container, index: INDEX_BIND_LAST, windowsById: windowsById)
         }
     }
     return true
@@ -126,4 +164,5 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
 // and with mouse manipulations
 @MainActor func resetClosedWindowsCache() {
     closedWindowsCache = FrozenWorld(monitors: [], windowIds: [])
+    cachedWindowBindings = [:]
 }

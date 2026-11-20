@@ -31,19 +31,21 @@ struct ClosedWindowsCacheTest {
         #expect(!isWindowInClosedWindowsCache(floatingWindow.windowId))
     }
 
-    @Test func testForcedSnapshotReplacesStaleSupersetBeforeSleepRediscovery() {
+    @Test func testSuccessiveDisappearanceBatchesPreserveEarlierWindows() {
         defer { resetClosedWindowsCache() }
-        let workspace = globalFocus.workspace
-        let staleWindow = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
-        let liveFloatingWindow = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
+        let firstWorkspace = Workspace.get(byName: "first")
+        let secondWorkspace = Workspace.get(byName: "second")
+        let firstWindow = TestWindow.new(id: 1, parent: firstWorkspace.rootTilingContainer)
+        let secondWindow = TestWindow.new(id: 2, parent: secondWorkspace.floatingWindowsContainer)
         cacheClosedWindowIfNeeded()
 
-        // A normal refresh keeps a superset cache. Sleep handling must replace it atomically
-        // before any currently live window is detached from its workspace.
-        staleWindow.unbindFromParent()
-        cacheClosedWindowIfNeeded(forceRefresh: true)
+        // AX can report disappearance across successive refreshes. Taking the second
+        // snapshot must not forget the window detached by the first refresh.
+        firstWindow.unbindFromParent()
+        cacheClosedWindowIfNeeded()
+        secondWindow.unbindFromParent()
 
-        #expect(!isWindowInClosedWindowsCache(staleWindow.windowId))
-        #expect(isWindowInClosedWindowsCache(liveFloatingWindow.windowId))
+        #expect(isWindowInClosedWindowsCache(firstWindow.windowId))
+        #expect(isWindowInClosedWindowsCache(secondWindow.windowId))
     }
 }

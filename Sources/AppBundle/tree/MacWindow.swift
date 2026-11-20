@@ -66,7 +66,7 @@ final class MacWindow: Window {
         let shouldSkipClosedWindowsCacheRestore = config.crossWorkspaceFloatingWindows && window.isFloating && !isStartup &&
             !isWindowInClosedWindowsCache(window.windowId)
         if shouldSkipClosedWindowsCacheRestore {
-            resetClosedWindowsCache()
+            // A genuinely new floating window must not discard windows still returning from sleep.
             await runOnWindowDetected(ifConventional: window)
         } else if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
             await runOnWindowDetected(ifConventional: window)

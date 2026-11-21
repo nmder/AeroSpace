@@ -31,6 +31,20 @@ struct WorkspaceTest {
         #expect(mainMonitorInfo.visibleWorkspace === globalFocus.workspace)
     }
 
+    @Test func testNewDisplayDefaultsDoNotReassignWorkspacesToExistingDisplays() {
+        config.workspaceToMonitorAssignmentOnConnect = [
+            "a": WorkspaceToMonitorAssignmentOnConnect(target: [.main], largerThan: nil, smallerThan: nil),
+        ]
+        let workspace = Workspace.get(byName: "a")
+        workspace.unbindFromParent()
+
+        applyWorkspaceToMonitorAssignmentsOnConnect(onlyDisplayIds: ["previously-unseen-display"])
+        #expect(workspace.parent == nil)
+
+        applyWorkspaceToMonitorAssignmentsOnConnect(onlyDisplayIds: [mainMonitorInfo.physicalDisplayId])
+        #expect(workspace.parent === mainMonitorInfo.toMonitorOrRearrangeMonitors().getWorkspacesContainerOrCreate())
+    }
+
     @Test func testAssignmentOnConnectRebindsWorkspaceAfterMonitorReconnect() {
         config.workspaceToMonitorAssignmentOnConnect = [
             "a": WorkspaceToMonitorAssignmentOnConnect(target: [.main], largerThan: nil, smallerThan: nil),

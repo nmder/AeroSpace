@@ -13,9 +13,11 @@ struct MoveWorkspaceToMonitorCommand: Command {
         switch args.target.val.resolve(target.workspace.workspaceMonitorInfo, wrapAround: args.wrapAround) {
             case .success(let targetMonitor):
                 if targetMonitor.monitorId_oneBased == prevMonitor.monitorId_oneBased {
+                    recordExplicitWorkspaceMonitorMove(focusedWorkspace)
                     return .succ
                 }
                 if targetMonitor.setVisibleWorkspace(focusedWorkspace) {
+                    recordExplicitWorkspaceMonitorMove(focusedWorkspace)
                     let stubWorkspace = getStubWorkspace(for: prevMonitor)
                     check(
                         prevMonitor.setVisibleWorkspace(stubWorkspace),

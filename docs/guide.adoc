@@ -779,8 +779,8 @@ The first matching pattern will be used
 
 xref:commands.adoc#move-workspace-to-monitor[move-workspace-to-monitor] command has no effect for workspaces that have monitor assignment
 
-You can also assign workspaces only when monitors are connected/rearranged without
-forcing the assignment afterwards:
+You can also assign workspaces at startup and when a previously unseen physical display
+connects, without forcing the assignment afterwards:
 
 [source,toml]
 ----
@@ -793,9 +793,14 @@ forcing the assignment afterwards:
 * `if`, `larger-than`, and `smaller-than` use the same monitor pattern syntax as
   `workspace-to-monitor-force-assignment`
 * Size comparisons use monitor area (`width * height`)
-* Unlike `workspace-to-monitor-force-assignment`, this option only affects initial
-  placement when monitor topology changes. You can still move these workspaces later
+* Unlike `workspace-to-monitor-force-assignment`, this option applies defaults at startup
+  and for displays first seen in the current AeroSpace session. You can still move these workspaces later
   with xref:commands.adoc#move-workspace-to-monitor[move-workspace-to-monitor]
+* Sleep/wake, resolution changes, display rearrangement, and reconnecting a known display
+  do not reapply these defaults. AeroSpace remembers the last workspace-to-display placement
+  for the current session and restores it when that display returns.
+* Explicitly moving or summoning a workspace while its display is disconnected overrides
+  the remembered placement. `workspace-to-monitor-force-assignment` remains enforced.
 
 == Dialog heuristics
 

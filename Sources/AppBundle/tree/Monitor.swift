@@ -2,6 +2,8 @@ import AppKit
 import Common
 
 @MainActor private var pointToMonitor: [Point: Monitor] = [:]
+@MainActor private var monitorPlacementHistory = MonitorPlacementHistory()
+@MainActor private var lastVisibleWorkspaceByDisplay: [String: String] = [:]
 
 final class Monitor: TreeNode, NonLeafTreeNodeObject {
     fileprivate var _info: MonitorInfo
@@ -23,90 +25,83 @@ final class Monitor: TreeNode, NonLeafTreeNodeObject {
     @MainActor static var all: [Monitor] { Array(pointToMonitor.values) }
 }
 
+@MainActor func recordExplicitWorkspaceMonitorMove(_ workspace: Workspace) {
+    monitorPlacementHistory.recordExplicitMove(workspace: workspace.name, displayId: workspace.workspaceMonitorInfo.physicalDisplayId)
+}
+
 @MainActor private func rearrangeMonitors() {
-    var newMonitorPoints = globalUnsortedMonitorInfos.grouped(by: { $0.rect.topLeftCorner }).mapValues { $0.singleOrNil().orDie() }
+    let newInfos = globalUnsortedMonitorInfos
+    // Display enumeration may briefly be empty during wake. Keep the previous tree intact.
+    guard !newInfos.isEmpty else { return }
+    let oldMonitors = Array(pointToMonitor.values)
+    var oldByDisplay = Dictionary(uniqueKeysWithValues: oldMonitors.map { ($0.info.physicalDisplayId, $0) })
+    let previouslyPresentIds = Set(oldByDisplay.keys)
+    for monitor in oldMonitors {
+        let container = monitor.getWorkspacesContainerOrCreate()
+        if let visibleName = container.visibleWorkspaceNameOrStale {
+            lastVisibleWorkspaceByDisplay[monitor.info.physicalDisplayId] = visibleName
+        }
+        for workspace in container.children.filterIsInstance(of: Workspace.self) {
+            monitorPlacementHistory.observe(workspace: workspace.name, displayId: monitor.info.physicalDisplayId)
+        }
+    }
 
-    var oldPointToMonitor = pointToMonitor
     pointToMonitor = [:]
-
-    var newPointToClosestOldPoint = [Point: Point]()
-    var oldPointToClosestNewPoint = [Point: Point]()
-
-    for point in newMonitorPoints.keys {
-        newPointToClosestOldPoint[point] = oldPointToMonitor.keys.minBy { ($0 - point).vectorLength }
+    for info in newInfos {
+        let monitor = oldByDisplay.removeValue(forKey: info.physicalDisplayId) ?? Monitor(info)
+        monitor._info = info
+        pointToMonitor[info.rect.topLeftCorner] = monitor
     }
+    let byDisplay = Dictionary(uniqueKeysWithValues: pointToMonitor.values.map { ($0.info.physicalDisplayId, $0) })
+    let presentIds = Set(byDisplay.keys)
+    let newDisplayIds = monitorPlacementHistory.reconcile(availableDisplayIds: presentIds)
+    let fallback = pointToMonitor[.zero] ?? pointToMonitor.values.first.orDie()
 
-    for point in oldPointToMonitor.keys {
-        oldPointToClosestNewPoint[point] = newMonitorPoints.keys.minBy { ($0 - point).vectorLength }
-    }
-
-    for (newPoint, closestOldPoint) in newPointToClosestOldPoint {
-        if oldPointToClosestNewPoint[closestOldPoint] == newPoint { // Closest points of each other
-            pointToMonitor[newPoint] = oldPointToMonitor.removeValue(forKey: closestOldPoint)
-            pointToMonitor[newPoint].orDie()._info = newMonitorPoints.removeValue(forKey: newPoint).orDie()
+    for disconnectedMonitor in oldByDisplay.values {
+        for workspace in disconnectedMonitor.getWorkspacesContainerOrCreate().children.filterIsInstance(of: Workspace.self) {
+            // This is a temporary fallback, not a new user-selected placement.
+            workspace.bind(to: fallback.getWorkspacesContainerOrCreate(), adaptiveWeight: 1, index: INDEX_BIND_LAST)
         }
     }
 
-    var monitors = oldPointToMonitor.values.sortedBy { $0.info.rect.topLeftCorner.vectorLength } // [Monitor]
-    let monitorInfos = newMonitorPoints.values.sortedBy { $0.rect.topLeftCorner.vectorLength } // [MonitorInfo]
-
-    let mainMonitor = pointToMonitor[Point(x: 0, y: 0)] ?? pointToMonitor.first?.value
-    while monitors.count > monitorInfos.count, let mainMonitor {
-        let monitor = monitors.removeLast()
-        for child in monitor.children {
-            switch child.nodeCases {
-                case .floatingWindowsContainer,
-                     .macosFullscreenWindowsContainer,
-                     .macosHiddenAppsWindowsContainer,
-                     .macosMinimizedWindowsContainer,
-                     .macosPopupWindowsContainer,
-                     .monitor,
-                     .tilingContainer,
-                     .window,
-                     .workspace: illegalChildParentRelation(child: child, parent: monitor)
-                case .workspacesContainer(let it):
-                    for workspace in it.children {
-                        workspace.bind(to: mainMonitor.getWorkspacesContainerOrCreate(), adaptiveWeight: 1, index: INDEX_BIND_LAST)
-                    }
-            }
+    for workspace in Workspace.all {
+        guard let displayId = monitorPlacementHistory.workspaceDisplayIds[workspace.name],
+              let target = byDisplay[displayId]
+        else { continue }
+        if workspace.parent !== target.getWorkspacesContainerOrCreate() {
+            _ = target.info.bindWorkspace(workspace)
         }
     }
-
-    for j in monitors.indices {
-        monitors[j]._info = monitorInfos.getOrNil(atIndex: j).orDie()
-        pointToMonitor[monitors[j].info.rect.topLeftCorner] = monitors[j]
+    for displayId in presentIds.subtracting(previouslyPresentIds) {
+        guard let name = lastVisibleWorkspaceByDisplay[displayId],
+              monitorPlacementHistory.workspaceDisplayIds[name] == displayId,
+              let workspace = Workspace.all.first(where: { $0.name == name })
+        else { continue }
+        _ = byDisplay[displayId]?.info.setVisibleWorkspace(workspace)
     }
 
-    var i = monitors.count
-    while let monitorInfo = monitorInfos.getOrNil(atIndex: i) {
-        let monitor = Monitor(monitorInfo)
-        monitors.append(monitor)
-        pointToMonitor[monitor.info.rect.topLeftCorner] = monitor
-        i += 1
+    // Geometry/order refreshes and known displays returning from sleep are not new connections.
+    // Startup applies all defaults explicitly once configuration has loaded.
+    if !previouslyPresentIds.isEmpty && !newDisplayIds.isEmpty {
+        applyWorkspaceToMonitorAssignmentsOnConnect(onlyDisplayIds: newDisplayIds)
     }
-
-    // Reapply one-shot assignments whenever displays reconnect or are rearranged.
-    // Sleep/wake can rebuild NSScreen objects even when the monitor count stays unchanged.
-    applyWorkspaceToMonitorAssignmentsOnConnect()
 }
 
 extension MonitorInfo {
-    @MainActor var visibleWorkspace: Workspace { // todo revisit this API
+    @MainActor var visibleWorkspace: Workspace {
         let monitor = toMonitorOrRearrangeMonitors()
         return monitor.getWorkspacesContainerOrCreate().getVisibleWorkspaceOrCreate(parent: monitor)
     }
 
     @MainActor func toMonitorOrRearrangeMonitors() -> Monitor {
-        if let existing = pointToMonitor[rect.topLeftCorner] {
+        if let existing = pointToMonitor[rect.topLeftCorner], existing.info.physicalDisplayId == physicalDisplayId {
             return existing
         }
-        rearrangeMonitors() // If monitor configuration changed
-        // Normally, recursion should happen only once more because we must take the value from the cache
-        // (Unless, monitor configuration data race happens)
-        return self.toMonitorOrRearrangeMonitors()
+        rearrangeMonitors()
+        return pointToMonitor.values.first(where: { $0.info.physicalDisplayId == physicalDisplayId }).orDie("Display is no longer connected")
     }
 
-    @MainActor func setVisibleWorkspace(_ workspace: Workspace) -> Bool { // todo revisit this API (new name: setVisibleWorkspace)
+    @MainActor func setVisibleWorkspace(_ workspace: Workspace) -> Bool {
         let container = toMonitorOrRearrangeMonitors().getWorkspacesContainerOrCreate()
         return container.setVisibleWorkspace(workspace)
     }
@@ -125,7 +120,8 @@ extension MonitorInfo {
     let newMonitorInfos = globalUnsortedMonitorInfos
     let topologyChanged = pointToMonitor.count != newMonitorInfos.count || newMonitorInfos.contains { newInfo in
         guard let oldInfo = pointToMonitor[newInfo.rect.topLeftCorner]?.info else { return true }
-        return oldInfo.monitorAppKitNsScreenScreensId != newInfo.monitorAppKitNsScreenScreensId ||
+        return oldInfo.physicalDisplayId != newInfo.physicalDisplayId ||
+            oldInfo.monitorAppKitNsScreenScreensId != newInfo.monitorAppKitNsScreenScreensId ||
             oldInfo.name != newInfo.name ||
             !rectEquals(oldInfo.rect, newInfo.rect) ||
             !rectEquals(oldInfo.visibleRect, newInfo.visibleRect) ||

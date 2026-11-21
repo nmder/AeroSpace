@@ -19,14 +19,12 @@ private struct CachedWindowBinding {
 @MainActor private var cachedWindowBindings: [OpaqueWindowId: CachedWindowBinding] = [:]
 
 struct FrozenMonitor: Sendable {
-    let visibleWorkspace: String
-    let topLeftCorner: Point
+    let physicalDisplayId: String
     let workspaces: [FrozenWorkspace]
 
     @MainActor init(_ monitor: Monitor) {
-        self.topLeftCorner = monitor.info.rect.topLeftCorner
+        self.physicalDisplayId = monitor.info.physicalDisplayId
         self.workspaces = monitor.getWorkspacesContainerOrCreate().children.map { FrozenWorkspace($0 as! Workspace) }
-        self.visibleWorkspace = monitor.getWorkspacesContainerOrCreate().getVisibleWorkspaceOrCreate(parent: monitor).name
     }
 }
 
@@ -75,14 +73,14 @@ struct FrozenWorkspace: Sendable {
         return false
     }
     let monitors = globalUnsortedMonitorInfos
-    let topLeftCornerToMonitorInfo = monitors.grouped { $0.rect.topLeftCorner }
+    let displayIdToMonitorInfo = monitors.grouped { $0.physicalDisplayId }
     // Keep references while rebuilding trees, including temporarily detached roots.
     let windowsById = Dictionary(uniqueKeysWithValues: Workspace.all.flatMap(\.allLeafWindowsRecursive).map { ($0.windowId, $0) })
 
     for monitor in closedWindowsCache.monitors {
         for frozenWorkspace in monitor.workspaces {
             let workspace = Workspace.get(byName: frozenWorkspace.name)
-            _ = topLeftCornerToMonitorInfo[monitor.topLeftCorner]?
+            _ = displayIdToMonitorInfo[monitor.physicalDisplayId]?
                 .singleOrNil()?
                 .bindWorkspace(workspace)
             for frozenWindow in frozenWorkspace.floatingWindows {
@@ -100,9 +98,9 @@ struct FrozenWorkspace: Sendable {
             }
         }
 
-        _ = topLeftCornerToMonitorInfo[monitor.topLeftCorner]?
-            .singleOrNil()?
-            .setVisibleWorkspace(Workspace.get(byName: monitor.visibleWorkspace))
+        // Rediscovery restores window membership, not which workspace the user is viewing.
+        // Replaying visibility here would switch unrelated monitors during native fullscreen.
+        // Physical display reconnect visibility is handled by monitor placement history.
     }
 
     // The latest tree may omit windows lost in an earlier AX refresh. Restore their membership

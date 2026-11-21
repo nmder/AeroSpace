@@ -85,13 +85,16 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
     nonisolated func hash(into hasher: inout Hasher) { hasher.combine(name) }
 }
 
-@MainActor func applyWorkspaceToMonitorAssignmentsOnConnect() {
+@MainActor func applyWorkspaceToMonitorAssignmentsOnConnect(onlyDisplayIds: Set<String>? = nil) {
     let sortedMonitors = globalSortedMonitorInfos
     for (workspaceName, assignment) in config.workspaceToMonitorAssignmentOnConnect {
-        guard let targetMonitorInfo = assignment.resolveMonitor(sortedMonitors: sortedMonitors) else { continue }
+        guard let targetMonitorInfo = assignment.resolveMonitor(sortedMonitors: sortedMonitors),
+              onlyDisplayIds?.contains(targetMonitorInfo.physicalDisplayId) != false
+        else { continue }
         let workspace = Workspace.get(byName: workspaceName)
         let wasVisible = workspace.isVisible
         guard targetMonitorInfo.bindWorkspace(workspace) else { continue }
+        recordExplicitWorkspaceMonitorMove(workspace)
         if wasVisible {
             _ = targetMonitorInfo.setVisibleWorkspace(workspace)
         }

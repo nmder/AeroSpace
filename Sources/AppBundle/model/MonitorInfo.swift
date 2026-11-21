@@ -2,6 +2,7 @@ import AppKit
 import Common
 
 private struct MonitorInfoImpl {
+    let physicalDisplayId: String
     let monitorAppKitNsScreenScreensId: Int
     let name: String
     let rect: Rect
@@ -18,6 +19,8 @@ extension MonitorInfoImpl: MonitorInfo {
 protocol MonitorInfo: AeroAny {
     /// The index in NSScreen.screens array. 1-based index
     var monitorAppKitNsScreenScreensId: Int { get }
+    /// Physical display UUID, independent of position and NSScreen array ordering.
+    var physicalDisplayId: String { get }
     var name: String { get }
     var rect: Rect { get }
     var visibleRect: Rect { get }
@@ -28,6 +31,7 @@ protocol MonitorInfo: AeroAny {
 
 final class LazyMonitorInfo: MonitorInfo {
     private let screen: NSScreen
+    var physicalDisplayId: String { screen.physicalDisplayId }
     let monitorAppKitNsScreenScreensId: Int
     let name: String
     let width: CGFloat
@@ -59,8 +63,17 @@ final class LazyMonitorInfo: MonitorInfo {
 // 2. It's inaccurate because NSScreen.main doesn't work correctly from NSWorkspace.didActivateApplicationNotification &
 //    kAXFocusedWindowChangedNotification callbacks.
 extension NSScreen {
+    fileprivate var physicalDisplayId: String {
+        let displayId = (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as! NSNumber).uint32Value
+        if let uuid = unsafe CGDisplayCreateUUIDFromDisplayID(displayId)?.takeRetainedValue() {
+            return CFUUIDCreateString(nil, uuid) as String
+        }
+        return "display-\(displayId)"
+    }
+
     fileprivate func toMonitorInfo(monitorAppKitNsScreenScreensId: Int) -> MonitorInfo {
         MonitorInfoImpl(
+            physicalDisplayId: physicalDisplayId,
             monitorAppKitNsScreenScreensId: monitorAppKitNsScreenScreensId,
             name: localizedName,
             rect: rect,
@@ -87,6 +100,7 @@ extension NSScreen {
 
 private let testMonitorInfoRect = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
 private let testMonitorInfo = MonitorInfoImpl(
+    physicalDisplayId: "test-main-display",
     monitorAppKitNsScreenScreensId: 1,
     name: "Test Monitor",
     rect: testMonitorInfoRect,

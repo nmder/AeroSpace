@@ -31,6 +31,26 @@ struct ClosedWindowsCacheTest {
         #expect(!isWindowInClosedWindowsCache(floatingWindow.windowId))
     }
 
+    @Test func testRediscoveryRestoresMembershipWithoutSwitchingVisibleWorkspace() async throws {
+        defer { resetClosedWindowsCache() }
+        let original = Workspace.get(byName: "original")
+        let window = TestWindow.new(id: 1, parent: original.rootTilingContainer)
+        #expect(original.focusWorkspace())
+        cacheClosedWindowIfNeeded()
+
+        let current = Workspace.get(byName: "current")
+        #expect(current.focusWorkspace())
+        // Simulate rediscovery initially binding an old window to the focused workspace.
+        window.bind(to: current.rootTilingContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+
+        let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window)
+
+        #expect(restored)
+        #expect(window.nodeWorkspace === original)
+        #expect(mainMonitorInfo.visibleWorkspace === current)
+        #expect(globalFocus.workspace === current)
+    }
+
     @Test func testSuccessiveDisappearanceBatchesPreserveEarlierWindows() {
         defer { resetClosedWindowsCache() }
         let firstWorkspace = Workspace.get(byName: "first")

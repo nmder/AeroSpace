@@ -17,7 +17,8 @@ import Foundation
 
         await bootstrapConfig_nonCancellable()
         _ = await reloadConfig_nonCancellable()
-        gcMonitors() // Initializes monitor tree and applies connect-time workspace assignments
+        gcMonitors()
+        applyWorkspaceToMonitorAssignmentsOnConnect() // Apply startup defaults once, not on every wake.
 
         startUnixSocketServer()
         GlobalObserver.initObserver()

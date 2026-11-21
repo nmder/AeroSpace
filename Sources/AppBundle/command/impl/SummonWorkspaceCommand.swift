@@ -9,14 +9,16 @@ struct SummonWorkspaceCommand: Command {
         let workspace = Workspace.get(byName: args.target.val.raw)
         let monitor = globalFocus.workspace.workspaceMonitorInfo
         if monitor.visibleWorkspace == workspace {
-            return switch args.failIfNoop {
-                case true: .fail
+            switch args.failIfNoop {
+                case true: return .fail
                 case false:
-                    .succ(io.err("Workspace '\(workspace.name)' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"))
+                    recordExplicitWorkspaceMonitorMove(workspace)
+                    return .succ(io.err("Workspace '\(workspace.name)' is already visible on the focused monitor. Tip: use --fail-if-noop to exit with non-zero code"))
             }
         }
         let prevMonitor = workspace.isVisible ? workspace.workspaceMonitorInfo : nil
         if monitor.setVisibleWorkspace(workspace) {
+            recordExplicitWorkspaceMonitorMove(workspace)
             if let prevMonitor {
                 let stubWorkspace = getStubWorkspace(for: prevMonitor)
                 check(

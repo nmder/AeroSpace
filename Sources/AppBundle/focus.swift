@@ -22,6 +22,7 @@ struct LiveFocus: AeroAny, Equatable {
             windowId: windowOrNil?.windowId,
             workspaceName: workspace.name,
             monitorId_oneBased: workspace.workspaceMonitorInfo.monitorId_oneBased ?? 0,
+            physicalDisplayId: workspace.workspaceMonitorInfo.physicalDisplayId,
         )
     }
 }
@@ -35,6 +36,7 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
     let workspaceName: String
     // monitorId is not part of the focus. We keep it here only for 'on-focused-monitor-changed' to work
     let monitorId_oneBased: Int
+    let physicalDisplayId: String
 
     @MainActor var live: LiveFocus { // Important: don't access focus.monitorId here. monitorId is not part of the focus. Always prefer workspace
         let window: Window? = windowId.flatMap { Window.get(byId: $0) }
@@ -51,7 +53,12 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
 
 @MainActor private var _focus: FrozenFocus = {
     let monitor = mainMonitorInfo
-    return FrozenFocus(windowId: nil, workspaceName: monitor.visibleWorkspace.name, monitorId_oneBased: monitor.monitorId_oneBased ?? 0)
+    return FrozenFocus(
+        windowId: nil,
+        workspaceName: monitor.visibleWorkspace.name,
+        monitorId_oneBased: monitor.monitorId_oneBased ?? 0,
+        physicalDisplayId: monitor.physicalDisplayId,
+    )
 }()
 
 /// Global focus.
@@ -126,7 +133,7 @@ extension Workspace {
     let frozenFocus = focus.frozen
     var hasFocusChanged = false
     var hasFocusedWorkspaceChanged = false
-    var hasFocusedMonitorChanged = false
+    let previousPhysicalDisplayId = _lastKnownFocus.physicalDisplayId
     if frozenFocus != _lastKnownFocus {
         _prevFocus = _lastKnownFocus
         hasFocusChanged = true
@@ -134,9 +141,6 @@ extension Workspace {
     if frozenFocus.workspaceName != _lastKnownFocus.workspaceName {
         _prevFocusedWorkspaceName = _lastKnownFocus.workspaceName
         hasFocusedWorkspaceChanged = true
-    }
-    if frozenFocus.monitorId_oneBased != _lastKnownFocus.monitorId_oneBased {
-        hasFocusedMonitorChanged = true
     }
     _lastKnownFocus = frozenFocus
 
@@ -149,9 +153,26 @@ extension Workspace {
     if let _prevFocusedWorkspaceName, hasFocusedWorkspaceChanged {
         onWorkspaceChanged(_prevFocusedWorkspaceName, frozenFocus.workspaceName, focus)
     }
-    if hasFocusedMonitorChanged {
-        _ = await onFocusedMonitorChanged(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, focus)
-    }
+    _ = await onFocusedMonitorChangedIfNeeded(
+        previousDisplayId: previousPhysicalDisplayId,
+        currentDisplayId: frozenFocus.physicalDisplayId,
+        .defaultEnv,
+        CmdIoImpl.emptyStdinIgnoringOut,
+        focus,
+    )
+}
+
+@MainActor func onFocusedMonitorChangedIfNeeded(
+    previousDisplayId: String,
+    currentDisplayId: String,
+    _ env: CmdEnv,
+    _ io: CmdIo,
+    _ focus: LiveFocus,
+) async -> Int32ExitCode {
+    // Display sequence numbers may be reassigned by macOS after sleep/fullscreen.
+    // Mouse-follow callbacks must track the physical display, not its current index.
+    guard previousDisplayId != currentDisplayId else { return Int32ExitCode(rawValue: EXIT_CODE_ZERO) }
+    return await onFocusedMonitorChanged(env, io, focus)
 }
 
 @MainActor func onFocusedMonitorChanged(_ env: CmdEnv, _ io: CmdIo, _ focus: LiveFocus) async -> Int32ExitCode {
